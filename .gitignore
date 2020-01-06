@@ -1,4 +1,6 @@
 dataset/
+result/
+zoo/
 
 *.pyc
 __pycache__
