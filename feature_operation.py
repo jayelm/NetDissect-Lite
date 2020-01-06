@@ -1,5 +1,4 @@
 import os
-from torch.autograd import Variable as V
 from PIL import Image
 import numpy as np
 import torch
@@ -12,7 +11,7 @@ from loader.data_loader import SegmentationData, SegmentationPrefetcher
 from tqdm import tqdm, trange
 
 features_blobs = []
-def hook_feature(module, input, output):
+def hook_feature(module, inp, output):
     features_blobs.append(output.data.cpu().numpy())
 
 
@@ -44,8 +43,8 @@ class FeatureOperator:
             for i, (mmap_file, mmap_max_file) in enumerate(zip(mmap_files,mmap_max_files)):
                 if os.path.exists(mmap_file) and os.path.exists(mmap_max_file) and features_size[i] is not None:
                     print('loading features %s' % settings.FEATURE_NAMES[i])
-                    wholefeatures[i] = np.memmap(mmap_file, dtype=float,mode='r', shape=tuple(features_size[i]))
-                    maxfeatures[i] = np.memmap(mmap_max_file, dtype=float, mode='r', shape=tuple(features_size[i][:2]))
+                    wholefeatures[i] = np.memmap(mmap_file, dtype=np.float32, mode='r', shape=tuple(features_size[i]))
+                    maxfeatures[i] = np.memmap(mmap_max_file, dtype=np.float32, mode='r', shape=tuple(features_size[i][:2]))
                 else:
                     print('file missing, loading from scratch')
                     skip = False
@@ -53,27 +52,25 @@ class FeatureOperator:
                 return wholefeatures, maxfeatures
 
         num_batches = (len(loader.indexes) + loader.batch_size - 1) / loader.batch_size
-        for batch_idx,batch in tqdm(enumerate(loader.tensor_batches(bgr_mean=self.mean)), desc='Extracting features', total=num_batches):
+        for batch_idx,batch in tqdm(enumerate(loader.tensor_batches(bgr_mean=self.mean)), desc='Extracting features', total=int(np.ceil(num_batches))):
             del features_blobs[:]
-            input = batch[0]
-            batch_size = len(input)
-            print('extracting feature from batch %d / %d' % (batch_idx+1, num_batches))
-            input = torch.from_numpy(input[:, ::-1, :, :].copy())
-            input.div_(255.0 * 0.224)
+            inp = batch[0]
+            batch_size = len(inp)
+            inp = torch.from_numpy(inp[:, ::-1, :, :].copy(), requires_grad=False)
+            inp.div_(255.0 * 0.224)
             if settings.GPU:
-                input = input.cuda()
-            input_var = V(input,volatile=True)
-            logit = model.forward(input_var)
+                inp = inp.cuda()
+            logit = model.forward(inp)
             while np.isnan(logit.data.cpu().max()):
                 print("nan") #which I have no idea why it will happen
                 del features_blobs[:]
-                logit = model.forward(input_var)
+                logit = model.forward(inp)
             if maxfeatures[0] is None:
                 # initialize the feature variable
                 for i, feat_batch in enumerate(features_blobs):
                     size_features = (len(loader.indexes), feat_batch.shape[1])
                     if memmap:
-                        maxfeatures[i] = np.memmap(mmap_max_files[i],dtype=float,mode='w+',shape=size_features)
+                        maxfeatures[i] = np.memmap(mmap_max_files[i],dtype=np.float32,mode='w+',shape=size_features)
                     else:
                         maxfeatures[i] = np.zeros(size_features)
             if len(feat_batch.shape) == 4 and wholefeatures[0] is None:
@@ -83,7 +80,7 @@ class FeatureOperator:
                     len(loader.indexes), feat_batch.shape[1], feat_batch.shape[2], feat_batch.shape[3])
                     features_size[i] = size_features
                     if memmap:
-                        wholefeatures[i] = np.memmap(mmap_files[i], dtype=float, mode='w+', shape=size_features)
+                        wholefeatures[i] = np.memmap(mmap_files[i], dtype=np.float32, mode='w+', shape=size_features)
                     else:
                         wholefeatures[i] = np.zeros(size_features)
             np.save(features_size_file, features_size)
@@ -128,13 +125,20 @@ class FeatureOperator:
                                     once=True, batch_size=settings.TALLY_BATCH_SIZE,
                                     ahead=settings.TALLY_AHEAD, start=start, end=end)
         count = start
-        for batch in tqdm(pd.batches(), desc='Labelprobe'):
+        for batch in tqdm(pd.batches(), desc='Label probing',
+                          total=int(np.ceil(end / settings.TALLY_BATCH_SIZE))):
 
+            # Concept map - list of concepts and their associated
+            # images
             for concept_map in batch:
                 count += 1
+                # Get the features of this image
                 img_index = concept_map['i']
                 scalars, pixels = [], []
+                # Loop through the possible categories (color,
+                # object, part, scene, texture)
                 for cat in data.category_names():
+                    # Any labels applying to this image?
                     label_group = concept_map[cat]
                     shape = np.shape(label_group)
                     if len(shape) % 2 == 0:
@@ -142,20 +146,37 @@ class FeatureOperator:
                     if len(shape) < 2:
                         scalars += label_group
                     else:
+                        # This is segmentation-level data
                         pixels.append(label_group)
                 for scalar in scalars:
                     tally_labels[scalar] += concept_map['sh'] * concept_map['sw']
                 if pixels:
                     pixels = np.concatenate(pixels)
+                    # Pixels - each number represent a combination
+                    # of segmentation masks (how)?
+                    # Count the pixels to get number pixels
+                    # associated with each number (but again
+                    # segments should overlap?)
                     tally_label = np.bincount(pixels.ravel())
                     if len(tally_label) > 0:
                         tally_label[0] = 0
                     tally_labels[:len(tally_label)] += tally_label
 
+                # Loop through units (i.e. neurons/channels)
                 for unit_id in range(units):
+                    # Get the feature of the jth unit across the
+                    # entire map (e.g. 7 x 7 map since this is a
+                    # high level uniit)
                     feature_map = features[img_index][unit_id]
+                    # Check the activation threshold for this unit (e.g. top
+                    # 0.5% of activations this unit ever displays, across all
+                    # locations of all images in the dataset)
+                    # If there is some location where the activation is higher,
+                    # compute the binary mask defined by these high activations
                     if feature_map.max() > threshold[unit_id]:
 
+                        # Resize activations w/ interpolation TODO: Make sure intepolation is correct
+                        # FIXME: Some of these thresholds look massive. is that right?
                         mask = np.array(Image.fromarray(feature_map).resize((concept_map['sh'], concept_map['sw']), resample=Image.BILINEAR))
                         #reduction = int(round(settings.IMG_SIZE / float(concept_map['sh'])))
                         #mask = upsample.upsampleL(fieldmap, feature_map, shape=(concept_map['sh'], concept_map['sw']), reduction=reduction)
@@ -163,11 +184,25 @@ class FeatureOperator:
 
                         tally_units[unit_id] += len(indexes)
                         if len(pixels) > 0:
+                            # Access the segmasks where our mask is active.
+                            # Count how many times each value occurs
                             tally_bt = np.bincount(pixels[:, indexes[:, 0], indexes[:, 1]].ravel())
+                            # Again, what do the values represent?
                             if len(tally_bt) > 0:
                                 tally_bt[0] = 0
-                            tally_cat = np.dot(tally_bt[None,:], data.labelcat[:len(tally_bt), :])[0]
+                            # There are 1198 labels. data.labelcat tells you
+                            # which category each belongs to (e.g. place, object, etc)
+                            # tally_cat groups up the activation and concept
+                            # overlap by category and sums them up
+                            tally_cat = np.dot(tally_bt[np.newaxis, :], data.labelcat[:len(tally_bt), :])[0]
+                            # For this unit, start summing up the TOTAL
+                            # activations for each category (againn, we're
+                            # still not doing labels, but categories!)
+                            # Weird thing - 0:len(tally_bt) always indexes from
+                            # the beginning - why is that? Will we ever get to
+                            # the extra 1k labels in tally_both?
                             tally_both[unit_id,:len(tally_bt)] += tally_bt
+                            print(len(tally_bt))
                         for scalar in scalars:
                             tally_cat += data.labelcat[scalar]
                             tally_both[unit_id, scalar] += len(indexes)
@@ -182,10 +217,14 @@ class FeatureOperator:
         units = features.shape[1]
         labels = len(self.data.label)
         categories = self.data.category_names()
-        tally_both = np.zeros((units,labels),dtype=np.float64)
-        tally_units = np.zeros(units,dtype=np.float64)
-        tally_units_cat = np.zeros((units,len(categories)), dtype=np.float64)
-        tally_labels = np.zeros(labels,dtype=np.float64)
+        # hidden units x
+        tally_both = np.zeros((units,labels),dtype=np.float32)
+        # Track the total size of all activation masks (across all images)
+        tally_units = np.zeros(units,dtype=np.float32)
+        # hidden units x number of CONCEPT categories
+        # (i.e. 5)
+        tally_units_cat = np.zeros((units,len(categories)), dtype=np.float32)
+        tally_labels = np.zeros(labels,dtype=np.float32)
 
         if settings.PARALLEL > 1:
             psize = int(np.ceil(float(self.data.size()) / settings.PARALLEL))
