@@ -200,9 +200,8 @@ class FeatureOperator:
                             # still not doing labels, but categories!)
                             # Weird thing - 0:len(tally_bt) always indexes from
                             # the beginning - why is that? Will we ever get to
-                            # the extra 1k labels in tally_both?
+                            # the extra 1k labels in tally_both? (Answer is yes to some extent)
                             tally_both[unit_id,:len(tally_bt)] += tally_bt
-                            print(len(tally_bt))
                         for scalar in scalars:
                             tally_cat += data.labelcat[scalar]
                             tally_both[unit_id, scalar] += len(indexes)
