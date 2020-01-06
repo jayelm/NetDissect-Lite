@@ -1,16 +1,15 @@
-
 import os
 from torch.autograd import Variable as V
 from PIL import Image
 import numpy as np
 import torch
 import settings
-import time
 import util.upsample as upsample
 import util.vecquantile as vecquantile
 import multiprocessing.pool as pool
 from loader.data_loader import load_csv
 from loader.data_loader import SegmentationData, SegmentationPrefetcher
+from tqdm import tqdm, trange
 
 features_blobs = []
 def hook_feature(module, input, output):
@@ -54,7 +53,7 @@ class FeatureOperator:
                 return wholefeatures, maxfeatures
 
         num_batches = (len(loader.indexes) + loader.batch_size - 1) / loader.batch_size
-        for batch_idx,batch in enumerate(loader.tensor_batches(bgr_mean=self.mean)):
+        for batch_idx,batch in tqdm(enumerate(loader.tensor_batches(bgr_mean=self.mean)), desc='Extracting features', total=num_batches):
             del features_blobs[:]
             input = batch[0]
             batch_size = len(input)
@@ -108,15 +107,8 @@ class FeatureOperator:
             return np.load(qtpath)
         print("calculating quantile threshold")
         quant = vecquantile.QuantileVector(depth=features.shape[1], seed=1)
-        start_time = time.time()
-        last_batch_time = start_time
         batch_size = 64
-        for i in range(0, features.shape[0], batch_size):
-            batch_time = time.time()
-            rate = i / (batch_time - start_time + 1e-15)
-            batch_rate = batch_size / (batch_time - last_batch_time + 1e-15)
-            last_batch_time = batch_time
-            print('Processing quantile index %d: %f %f' % (i, rate, batch_rate))
+        for i in trange(0, features.shape[0], batch_size, desc='Processing quantiles'):
             batch = features[i:i + batch_size]
             batch = np.transpose(batch, axes=(0, 2, 3, 1)).reshape(-1, features.shape[1])
             quant.add(batch)
@@ -136,15 +128,7 @@ class FeatureOperator:
                                     once=True, batch_size=settings.TALLY_BATCH_SIZE,
                                     ahead=settings.TALLY_AHEAD, start=start, end=end)
         count = start
-        start_time = time.time()
-        last_batch_time = start_time
-        for batch in pd.batches():
-            batch_time = time.time()
-            rate = (count - start) / (batch_time - start_time + 1e-15)
-            batch_rate = len(batch) / (batch_time - last_batch_time + 1e-15)
-            last_batch_time = batch_time
-
-            print('labelprobe image index %d, items per sec %.4f, %.4f' % (count, rate, batch_rate))
+        for batch in tqdm(pd.batches(), desc='Labelprobe'):
 
             for concept_map in batch:
                 count += 1
