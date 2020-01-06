@@ -155,7 +155,8 @@ class FeatureOperator:
                 for unit_id in range(units):
                     feature_map = features[img_index][unit_id]
                     if feature_map.max() > threshold[unit_id]:
-                        mask = np.array(Image.fromarray(feature_map).resize((concept_map['sh'], concept_map['sw'])))
+
+                        mask = np.array(Image.fromarray(feature_map).resize((concept_map['sh'], concept_map['sw']), resample=Image.BILINEAR))
                         #reduction = int(round(settings.IMG_SIZE / float(concept_map['sh'])))
                         #mask = upsample.upsampleL(fieldmap, feature_map, shape=(concept_map['sh'], concept_map['sw']), reduction=reduction)
                         indexes = np.argwhere(mask > threshold[unit_id])
