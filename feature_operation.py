@@ -56,7 +56,7 @@ class FeatureOperator:
             del features_blobs[:]
             inp = batch[0]
             batch_size = len(inp)
-            inp = torch.from_numpy(inp[:, ::-1, :, :].copy(), requires_grad=False)
+            inp = torch.from_numpy(inp[:, ::-1, :, :].copy())
             inp.div_(255.0 * 0.224)
             if settings.GPU:
                 inp = inp.cuda()
