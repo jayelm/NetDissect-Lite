@@ -222,7 +222,7 @@ class FeatureOperator:
         tally_units = np.zeros(units,dtype=np.float32)
         # hidden units x number of CONCEPT categories
         # (i.e. 5)
-        tally_units_cat = np.zeros((units,len(categories)), dtype=np.float32)
+        tally_units_cat = np.zeros((units, len(categories)), dtype=np.float32)
         tally_labels = np.zeros(labels,dtype=np.float32)
 
         if settings.PARALLEL > 1:

@@ -9,6 +9,7 @@ import visualize.expdir as expdir
 import visualize.bargraph as bargraph
 import settings
 import numpy as np
+from PIL import Image
 # unit,category,label,score
 
 replacements = [(re.compile(r[0]), r[1]) for r in [
