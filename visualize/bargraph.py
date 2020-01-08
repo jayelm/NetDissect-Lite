@@ -58,7 +58,7 @@ def bar_graph_svg(ed, blob,tally_result=None,
         if (label not in label_score
                 or label_score[label] < float(record['score'])):
             label_score[label] = float(record['score'])
-    # Count each label, and note its cateogry
+    # Count each label, and note its category
     label_counts = {}
     for label, cats in label_cats.items():
         label_counts[label] = len(cats)

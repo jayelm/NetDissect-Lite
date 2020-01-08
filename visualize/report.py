@@ -29,12 +29,13 @@ def generate_html_summary(ds, layer, maxfeature=None, features=None, thresholds=
         gridwidth=None, gap=3, limit=None, force=False, verbose=False):
     ed = expdir.ExperimentDirectory(settings.OUTPUT_FOLDER)
     print('Generating html summary %s' % ed.filename('html/%s.html' % expdir.fn_safe(layer)))
-    # Grab tally stats
-    # bestcat_pciou, name_pciou, score_pciou, _, _, _, _ = (tally_stats)
     if verbose:
         print('Sorting units by score.')
     if imsize is None:
         imsize = settings.IMG_SIZE
+    # 512 units x top_n.
+    # For each unit, images that get the highest activation (anywhere?), in
+    # descending order.
     top = np.argsort(maxfeature, 0)[:-1 - settings.TOPN:-1, :].transpose()
     ed.ensure_dir('html','image')
     html = [html_prefix]

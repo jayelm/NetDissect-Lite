@@ -338,16 +338,21 @@ class FeatureOperator:
             label_pciou]
         # Add the 6th disjunction category
         score_pciou = np.concatenate([score_pciou, disj_iou[np.newaxis]], 0)
-        # Finally, we pick only the best category
-        bestcat_pciou = score_pciou.argsort(axis=0)[::-1]
-        # Arrange units by their overall best cat iou score
-        ordering = score_pciou.max(axis=0).argsort()[::-1]
+        if settings.FORCE_DISJUNCTION:
+            bestcat_pciou = np.full((1, units),
+                                    score_pciou.shape[0] - 1, dtype=np.int64)
+            ordering = score_pciou[-1].argsort()[::-1]
+        else:
+            # Finally, we pick only the best category
+            bestcat_pciou = score_pciou.argsort(axis=0)[::-1]
+            # Arrange units by their overall best cat iou score
+            ordering = score_pciou.max(axis=0).argsort()[::-1]
         rets = []
 
         for i,unit in enumerate(ordering):
             # Top images are top[unit]
             bestcat = bestcat_pciou[0, unit]
-            if bestcat + 1 == score_pciou.shape[0]:
+            if bestcat == score_pciou.shape[0] - 1:
                 # Disjunction
                 data = {
                     'unit': (unit + 1),
