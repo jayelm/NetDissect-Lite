@@ -9,6 +9,7 @@ import multiprocessing.pool as pool
 from loader.data_loader import load_csv
 from loader.data_loader import SegmentationData, SegmentationPrefetcher
 from tqdm import tqdm, trange
+import csv
 
 features_blobs = []
 def hook_feature(module, inp, output):
@@ -146,17 +147,14 @@ class FeatureOperator:
                     if len(shape) < 2:
                         scalars += label_group
                     else:
-                        # This is segmentation-level data
                         pixels.append(label_group)
                 for scalar in scalars:
                     tally_labels[scalar] += concept_map['sh'] * concept_map['sw']
                 if pixels:
                     pixels = np.concatenate(pixels)
-                    # Pixels - each number represent a combination
-                    # of segmentation masks (how)?
-                    # Count the pixels to get number pixels
-                    # associated with each number (but again
-                    # segments should overlap?)
+                    # Pixels - each number represents the label of the
+                    # segmentation mask
+                    # XXX: Crucially, segmentation masks do NOT overlap
                     tally_label = np.bincount(pixels.ravel())
                     if len(tally_label) > 0:
                         tally_label[0] = 0
@@ -175,8 +173,9 @@ class FeatureOperator:
                     # compute the binary mask defined by these high activations
                     if feature_map.max() > threshold[unit_id]:
 
-                        # Resize activations w/ interpolation TODO: Make sure intepolation is correct
-                        # FIXME: Some of these thresholds look massive. is that right?
+                        # Resize activations w/ interpolation (note - changed
+                        # from imresize w/ default bilinear interp; here using
+                        # PIL and specify bilinear interp)
                         mask = np.array(Image.fromarray(feature_map).resize((concept_map['sh'], concept_map['sw']), resample=Image.BILINEAR))
                         #reduction = int(round(settings.IMG_SIZE / float(concept_map['sh'])))
                         #mask = upsample.upsampleL(fieldmap, feature_map, shape=(concept_map['sh'], concept_map['sw']), reduction=reduction)
@@ -186,8 +185,8 @@ class FeatureOperator:
                         if len(pixels) > 0:
                             # Access the segmasks where our mask is active.
                             # Count how many times each value occurs
-                            tally_bt = np.bincount(pixels[:, indexes[:, 0], indexes[:, 1]].ravel())
-                            # Again, what do the values represent?
+                            pixel_ids = pixels[:, indexes[:, 0], indexes[:, 1]].ravel()
+                            tally_bt = np.bincount(pixel_ids)
                             if len(tally_bt) > 0:
                                 tally_bt[0] = 0
                             # There are 1198 labels. data.labelcat tells you
@@ -196,11 +195,9 @@ class FeatureOperator:
                             # overlap by category and sums them up
                             tally_cat = np.dot(tally_bt[np.newaxis, :], data.labelcat[:len(tally_bt), :])[0]
                             # For this unit, start summing up the TOTAL
-                            # activations for each category (againn, we're
+                            # activations for each category (again, we're
                             # still not doing labels, but categories!)
-                            # Weird thing - 0:len(tally_bt) always indexes from
-                            # the beginning - why is that? Will we ever get to
-                            # the extra 1k labels in tally_both? (Answer is yes to some extent)
+                            # Start adding these intersections to "tally both"
                             tally_both[unit_id,:len(tally_bt)] += tally_bt
                         for scalar in scalars:
                             tally_cat += data.labelcat[scalar]
@@ -216,10 +213,10 @@ class FeatureOperator:
         units = features.shape[1]
         labels = len(self.data.label)
         categories = self.data.category_names()
-        # hidden units x
-        tally_both = np.zeros((units,labels),dtype=np.float32)
+        # hidden units x labels
+        tally_both = np.zeros((units, labels), dtype=np.float32)
         # Track the total size of all activation masks (across all images)
-        tally_units = np.zeros(units,dtype=np.float32)
+        tally_units = np.zeros(units, dtype=np.float32)
         # hidden units x number of CONCEPT categories
         # (i.e. 5)
         tally_units_cat = np.zeros((units, len(categories)), dtype=np.float32)
@@ -236,49 +233,163 @@ class FeatureOperator:
             FeatureOperator.tally_job((features, self.data, threshold, tally_labels, tally_units, tally_units_cat, tally_both, 0, self.data.size()))
 
         primary_categories = self.data.primary_categories_per_index()
+        # Tally units cat - how often is the neuron activated FOR EACH
+        # CATEGORY, not label, across all images.
+        # Dotting with labelcat gives us (n_units x n_labels) tensor -
+        # for each unit, for each label, this is the total number of times the
+        # neuron was activated for ALL labels OF A SPECIFIC CATEGORY (Across
+        # images).
+        # Because the data set
+        # contains some types of labels which are not present on some
+        # subsets of inputs, the sums are computed only on the subset
+        # of images that have at least one labeled concept of the same
+        # category as c
         tally_units_cat = np.dot(tally_units_cat, self.data.labelcat.T)
-        iou = tally_both / (tally_units_cat + tally_labels[np.newaxis,:] - tally_both + 1e-10)
+
+        # ==== DISJUNCTIONS ====
+        disj_iou = []
+        disj_lab = []
+        disj_name = []
+        disj_tally_both = []
+        disj_tally_units_cat = []
+        disj_tally_labels = []
+        for unit_id in trange(units, desc='Disjunctions'):
+            tally_bt_uid = tally_both[unit_id]
+            labs_uid = np.argwhere(tally_bt_uid != 0.0).squeeze(1)
+            cats_uid =  primary_categories[labs_uid]
+
+            tally_bt_uid = np.add.outer(tally_bt_uid[labs_uid], tally_bt_uid[labs_uid])
+
+            tally_uc_uid = tally_units_cat[unit_id]
+            tally_uc_uid = np.add.outer(tally_uc_uid[labs_uid], tally_uc_uid[labs_uid])
+
+            tally_labs_uid = np.add.outer(tally_labels[labs_uid], tally_labels[labs_uid])
+            iou_uid = tally_bt_uid / (tally_uc_uid + tally_labs_uid - tally_bt_uid + 1e-10)
+            # We don't care about "X v X" disjuncts
+            np.fill_diagonal(iou_uid, 0.0)
+            names_uid = [self.data.name(None, c) for c in labs_uid]
+            iou_labs_flat = []
+            iou_names_flat = []
+            iou_flat = []
+            tally_bt_flat = []
+            tally_uc_flat = []
+            tally_labs_flat = []
+            for i, (lab1, name1) in enumerate(zip(labs_uid, names_uid)):
+                for j, (lab2, name2) in enumerate(zip(labs_uid[:i], names_uid[:i])):  # lower tri
+                    iou_labs_flat.append([lab1, lab2])
+                    name_disj = f'{name1} OR {name2}'
+                    iou_names_flat.append(name_disj)
+                    iou_flat.append(iou_uid[i, j])
+                    tally_bt_flat.append(tally_bt_uid[i, j])
+                    tally_uc_flat.append(tally_uc_uid[i, j])
+                    tally_labs_flat.append(tally_labs_uid[i, j])
+            iou_labs_flat = np.array(iou_labs_flat)
+            iou_flat = np.array(iou_flat)
+            iou_names_flat = np.array(iou_names_flat)
+            tally_bt_flat = np.array(tally_bt_flat)
+            tally_uc_flat = np.array(tally_uc_flat)
+            tally_labs_flat = np.array(tally_labs_flat)
+
+            # What do I do about categories at this point?
+            # TODO: Ignoring categories right now. Just pick the best
+            # disjunction across all categories.
+            disj_idx = iou_flat.argmax()
+            disj_iou.append(iou_flat[disj_idx])
+            disj_lab.append(iou_labs_flat[disj_idx])
+            disj_name.append(iou_names_flat[disj_idx])
+            disj_tally_both.append(tally_bt_flat[disj_idx])
+            disj_tally_units_cat.append(tally_uc_flat[disj_idx])
+            disj_tally_labels.append(tally_labs_flat[disj_idx])
+
+        disj_iou = np.array(disj_iou, dtype=np.float32)
+        disj_lab = np.array(disj_lab, dtype=np.int)
+        disj_name = np.array(disj_name)
+        disj_tally_both = np.array(disj_tally_both)
+        disj_tally_units_cat = np.array(disj_tally_units_cat)
+        disj_tally_labels = np.array(disj_tally_labels)
+
+        # NUMERATOR: tally both - magnitude of intersection of activation masks
+        # and label masks
+        # DENOMINATOR: union - sum of total activations for each neuron (within
+        # the broad category) plus sum of total pixels covered by the label
+        # masks minus the intersection overlap
+        # Therefore the ij-th value is iou_i,j , the ratio. This should always
+        # be \in [0, 1]
+        # FIXME: Should I actually be using ints due to size?
+        iou = tally_both / (tally_units_cat + tally_labels[np.newaxis, :] - tally_both + 1e-10)
+        # We should get the best labels now - for each neuron pick the label with the highest iou.
+        # For each category type [0, 1, 2, 3, 4]:
+        # (n_categories x n_units x n_labels) matrix
+        # Where each row are the iou values but only for labels in the category
+        # Basically splitting up iou into these partially masked matrices
+        # pciou -> Per-Category IOU
         pciou = np.array([iou * (primary_categories[np.arange(iou.shape[1])] == ci)[np.newaxis, :] for ci in range(len(self.data.category_names()))])
+        # For each category/each unit, which label was the most active?
         label_pciou = pciou.argmax(axis=2)
+        # Get the NAME of the label as in label_pciou.
         name_pciou = [
             [self.data.name(None, j) for j in label_pciou[ci]]
             for ci in range(len(label_pciou))]
+        # The SCORE for each best label_pciou
+        # Pretty sure this can just be replaced with pciou.max(2)
         score_pciou = pciou[
             np.arange(pciou.shape[0])[:, np.newaxis],
             np.arange(pciou.shape[1])[np.newaxis, :],
             label_pciou]
+        # Add the 6th disjunction category
+        score_pciou = np.concatenate([score_pciou, disj_iou[np.newaxis]], 0)
+        # Finally, we pick only the best category
         bestcat_pciou = score_pciou.argsort(axis=0)[::-1]
+        # Arrange units by their overall best cat iou score
         ordering = score_pciou.max(axis=0).argsort()[::-1]
-        rets = [None] * len(ordering)
+        rets = []
 
         for i,unit in enumerate(ordering):
             # Top images are top[unit]
             bestcat = bestcat_pciou[0, unit]
-            data = {
-                'unit': (unit + 1),
-                'category': categories[bestcat],
-                'label': name_pciou[bestcat][unit],
-                'score': score_pciou[bestcat][unit]
-            }
-            for ci, cat in enumerate(categories):
-                label = label_pciou[ci][unit]
-                data.update({
-                    '%s-label' % cat: name_pciou[ci][unit],
-                    '%s-truth' % cat: tally_labels[label],
-                    '%s-activation' % cat: tally_units_cat[unit, label],
-                    '%s-intersect' % cat: tally_both[unit, label],
-                    '%s-iou' % cat: score_pciou[ci][unit]
-                })
-            rets[i] = data
+            if bestcat + 1 == score_pciou.shape[0]:
+                # Disjunction
+                data = {
+                    'unit': (unit + 1),
+                    'category': 'disj',
+                    'label': disj_name[unit],
+                    'score': disj_iou[unit]
+                }
+            else:
+                data = {
+                    'unit': (unit + 1),
+                    'category': categories[bestcat],
+                    'label': name_pciou[bestcat][unit],
+                    'score': score_pciou[bestcat][unit]
+                }
+
+            for ci, cat in enumerate(categories + ['disj']):
+                if cat == 'disj':
+                    data.update({
+                        f'{cat}-label': disj_name[unit],
+                        f'{cat}-truth': disj_tally_labels[unit],
+                        f'{cat}-activation': disj_tally_units_cat[unit],
+                        f'{cat}-intersect': disj_tally_both[unit],
+                        f'{cat}-iou': disj_iou[unit]
+                    })
+                else:
+                    label = label_pciou[ci][unit]
+                    data.update({
+                        f'{cat}-label': name_pciou[ci][unit],
+                        f'{cat}-truth': tally_labels[label],
+                        f'{cat}-activation': tally_units_cat[unit, label],
+                        f'{cat}-intersect': tally_both[unit, label],
+                        f'{cat}-iou': score_pciou[ci][unit]
+                    })
+            rets.append(data)
 
         if savepath:
-            import csv
             csv_fields = sum([[
-                '%s-label' % cat,
-                '%s-truth' % cat,
-                '%s-activation' % cat,
-                '%s-intersect' % cat,
-                '%s-iou' % cat] for cat in categories],
+                f'{cat}-label',
+                f'{cat}-truth',
+                f'{cat}-activation',
+                f'{cat}-intersect',
+                f'{cat}-iou'] for cat in categories],
                 ['unit', 'category', 'label', 'score'])
             with open(csvpath, 'w') as f:
                 writer = csv.DictWriter(f, csv_fields)

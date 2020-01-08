@@ -150,7 +150,6 @@ class SegmentationData(AbstractSegmentation):
         result[tuple(list(np.indices(arr.shape)) + [arr])] = 1
         return result
 
-
     def all_names(self, category, j):
         '''All English synonyms for the given label'''
         if category is not None:
