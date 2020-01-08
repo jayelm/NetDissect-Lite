@@ -389,7 +389,7 @@ class FeatureOperator:
                 f'{cat}-truth',
                 f'{cat}-activation',
                 f'{cat}-intersect',
-                f'{cat}-iou'] for cat in categories],
+                f'{cat}-iou'] for cat in categories + ['disj']],
                 ['unit', 'category', 'label', 'score'])
             with open(csvpath, 'w') as f:
                 writer = csv.DictWriter(f, csv_fields)
