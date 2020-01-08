@@ -20,3 +20,11 @@ rm CUB_200_2011.tgz
 popd
 
 fi
+
+if [ ! -f dataset/CUB_200_2011/images/001.Black_footed_Albatross/img.npz ]
+then
+
+echo "Saving to .npz"
+python script/save_cub_np.py
+
+fi
