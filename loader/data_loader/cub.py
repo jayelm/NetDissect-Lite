@@ -121,7 +121,8 @@ class TransformLoader:
         return self.parse_transform('Normalize')
 
 
-def load_cub(data_dir, random_state=None, max_classes=None, train_only=False):
+def load_cub(data_dir, random_state=None, max_classes=None, train_only=False,
+             train_augment=True):
     class_names = sorted(os.listdir(os.path.join(data_dir, 'images')))
     c2i = dict((v, k) for k, v in enumerate(class_names))
     if max_classes is not None:
@@ -166,7 +167,7 @@ def load_cub(data_dir, random_state=None, max_classes=None, train_only=False):
             attrs.append(id2attrs[img_name])
 
     tloader = TransformLoader(224)
-    train_transform = tloader.get_composed_transform(True)
+    train_transform = tloader.get_composed_transform(train_augment)
     if train_only:
         train = [imgs, classes, attrs]
         return CUBDataset(train, class_names, transform=train_transform,

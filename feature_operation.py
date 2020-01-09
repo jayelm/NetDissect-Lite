@@ -27,7 +27,8 @@ class FeatureOperator:
             self.mean = [109.5388,118.6897,124.6901]
         elif settings.PROBE_DATASET == 'cub':
             self.data = load_cub(settings.DATA_DIRECTORY, train_only=True,
-                                 max_classes=5 if settings.TEST_MODE else None)
+                                 max_classes=5 if settings.TEST_MODE else None,
+                                 train_augment=False)
             self.loader = CUBPrefetcher(self.data, once=True, batch_size=settings.BATCH_SIZE)
             # Unused
             self.mean = None
@@ -65,8 +66,10 @@ class FeatureOperator:
             del features_blobs[:]
             inp = batch[0]
             batch_size = len(inp)
-            inp = torch.from_numpy(inp[:, ::-1, :, :].copy())
-            inp.div_(255.0 * 0.224)
+            if settings.PROBE_DATASET == 'broden':
+                # Unused for CUB - tensors already
+                inp = torch.from_numpy(inp[:, ::-1, :, :].copy())
+                inp.div_(255.0 * 0.224)
             if settings.GPU:
                 inp = inp.cuda()
             logit = model.forward(inp)
