@@ -123,6 +123,12 @@ class TransformLoader:
 
 def load_cub(data_dir, random_state=None, max_classes=None, train_only=False,
              train_augment=True):
+    """
+    Load CUB dataset.
+
+    WE REDUCE image and attribute ids by 1 here so we never have to worry about
+    off-by-one errors anywhere else.
+    """
     class_names = sorted(os.listdir(os.path.join(data_dir, 'images')))
     c2i = dict((v, k) for k, v in enumerate(class_names))
     if max_classes is not None:
@@ -134,11 +140,13 @@ def load_cub(data_dir, random_state=None, max_classes=None, train_only=False,
     # Load attributes
     index_fname = os.path.join(data_dir, 'images.txt')
     index = pd.read_csv(os.path.join(data_dir, 'images.txt'), names=['image_id', 'image_name'], sep=' ')
+    index['image_id'] = index['image_id'] - 1
     name2id = dict(zip(index.image_name, index.image_id))
     id2name = {v: k for k, v in name2id.items()}
     attr_names_fname = os.path.join(data_dir, 'attributes', 'attributes.txt')
     attr_names = pd.read_csv(attr_names_fname, names=['attribute_id', 'attribute_name'],
                              sep=' ')
+    attr_names['attribute_id'] = attr_names['attribute_id'] - 1
     attr_names['category'], attr_names['value'] = zip(*attr_names.attribute_name.str.split('::'))
     attr_names2id = dict(zip(attr_names.attribute_name, attr_names.attribute_id))
     id2attr_names = {v: k for k, v in attr_names2id.items()}
@@ -146,6 +154,8 @@ def load_cub(data_dir, random_state=None, max_classes=None, train_only=False,
     attrs_fname = os.path.join(data_dir, 'attributes', 'image_attribute_labels.txt')
     attrs = pd.read_csv(attrs_fname, names=['image_id', 'attribute_id', 'is_present', 'certainty_id', 'time'],
                         sep=' ')
+    attrs['image_id'] = attrs['image_id'] - 1
+    attrs['attribute_id'] = attrs['attribute_id'] - 1
     id2attrs = defaultdict(dict)
     for img_id, img_name in id2name.items():
         img_attrs = attrs[attrs['image_id'] == img_id]
@@ -154,17 +164,21 @@ def load_cub(data_dir, random_state=None, max_classes=None, train_only=False,
         img_attrs = img_attrs.sort_values('attribute_id')['is_present']
         id2attrs[img_name] = img_attrs.to_numpy().astype(np.uint8)
 
-    # Flatten
+    # Load images in ascending image id order
     imgs = []
     classes = []
     img_ids = []
     attrs = []
-    for c, cimgs in tqdm(class_imgs.items(), desc='Loading CUB classes'):
-        for img_name in cimgs.keys():
-            imgs.append(cimgs[img_name])
-            classes.append(c2i[c])
-            img_ids.append(name2id[img_name])
-            attrs.append(id2attrs[img_name])
+    for image_id, image_name in tqdm(zip(index.image_id, index.image_name),
+                                     desc='Loading CUB images', total=len(index.image_id)):
+        image_cl = image_name.split('/')[0]
+        if image_cl not in class_imgs and max_classes is not None:
+            continue
+        imgs.append(class_imgs[image_cl][image_name])
+        classes.append(c2i[image_cl])
+        img_ids.append(image_id)
+        attrs.append(id2attrs[image_name])
+    assert all(i == j for i, j in zip(img_ids, range(len(classes))))
 
     tloader = TransformLoader(224)
     train_transform = tloader.get_composed_transform(train_augment)
@@ -194,6 +208,32 @@ class CUBDataset:
         self.n_classes = len(class_names)
         self.transform = transform
         self.attr_metadata = attr_metadata
+        self.attr_categories = list(self.attr_metadata['category'].unique())
+        self.attr_names = list(self.attr_metadata['attribute_name'])
+        self.attr2cat = dict(zip(self.attr_metadata['attribute_id'],
+                                 self.attr_metadata['category']))
+
+    def category_names(self):
+        return self.attr_categories
+
+    @property
+    def label(self):
+        return self.attr_names
+
+    def attr_to_cm(self, attr, idx):
+        is_present = np.argwhere(attr).squeeze()
+        cm = {cat: [] for cat in self.attr_categories}
+        for i in is_present:
+            i_cat = self.attr2cat[i]
+            cm[i_cat].append(i)
+        cm['i'] = idx
+        # Assume FULL segmentation mask
+        cm['sh'] = 224
+        cm['sw'] = 224
+        return cm
+
+    def to_concept_map(self, attrs, ids):
+        return [self.attr_to_cm(a, i) for a, i in zip(attrs, ids)]
 
     def __getitem__(self, i):
         img = self.imgs[i]
@@ -201,10 +241,14 @@ class CUBDataset:
             img = self.transform(img)
         attrs = self.attrs[i]
         c = self.classes[i]
-        return img, c, attrs
+        return img, c, i, attrs
 
     def __len__(self):
         return len(self.imgs)
+
+    def size(self):
+        """Per data-loader API this is the size of the underlying dataset"""
+        return len(self)
 
 
 class CUBPrefetcher:
@@ -226,8 +270,24 @@ class CUBPrefetcher:
         '''
         self.cub = data
         self.batch_size = batch_size
-        self.cub_loader = to_dataloader(self.cub, batch_size=batch_size)
+        self.cub_loader = to_dataloader(self.cub, batch_size=batch_size,
+                                        shuffle=randomize)
         self.indexes = range(0, len(self.cub))
+
+    def categories(self):
+        return self.cub.category_names()
+
+    @property
+    def label(self):
+        return self.cub.label
+
+    def batches(self):
+        # Get concept map
+        # Assume FULL segmentation height here.
+        for *_, ids, attrs in self.cub_loader:
+            attrs = attrs.numpy()
+            cm = self.cub.to_concept_map(attrs, ids)
+            yield cm
 
     def tensor_batches(self, bgr_mean=None):
         return self.cub_loader
@@ -236,6 +296,6 @@ class CUBPrefetcher:
         return len(self.cub_loader)
 
 
-def to_dataloader(dataset, batch_size=32):
+def to_dataloader(dataset, batch_size=32, shuffle=True):
     return DataLoader(dataset, batch_size=batch_size,
-                      shuffle=True, pin_memory=True)
+                      shuffle=shuffle, pin_memory=True)

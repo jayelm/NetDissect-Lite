@@ -134,9 +134,15 @@ class FeatureOperator:
         units = features.shape[1]
         size_RF = (settings.IMG_SIZE / features.shape[2], settings.IMG_SIZE / features.shape[3])
         fieldmap = ((0, 0), size_RF, size_RF)
-        pd = SegmentationPrefetcher(data, categories=data.category_names(),
-                                    once=True, batch_size=settings.TALLY_BATCH_SIZE,
-                                    ahead=settings.TALLY_AHEAD, start=start, end=end)
+        if settings.PROBE_DATASET == 'broden':
+            pd = SegmentationPrefetcher(data, categories=data.category_names(),
+                                        once=True, batch_size=settings.TALLY_BATCH_SIZE,
+                                        ahead=settings.TALLY_AHEAD, start=start, end=end)
+        else:
+            pd = CUBPrefetcher(data, categories=data.category_names(),
+                               once=True, batch_size=settings.TALLY_BATCH_SIZE,
+                               ahead=settings.TALLY_AHEAD, start=start,
+                               end=end)
         count = start
         for batch in tqdm(pd.batches(), desc='Label probing',
                           total=int(np.ceil(end / settings.TALLY_BATCH_SIZE))):
@@ -161,6 +167,8 @@ class FeatureOperator:
                     else:
                         pixels.append(label_group)
                 for scalar in scalars:
+                    # Assume it applies to the entire image (this is the area
+                    # of the entire label)
                     tally_labels[scalar] += concept_map['sh'] * concept_map['sw']
                 if pixels:
                     pixels = np.concatenate(pixels)
@@ -235,6 +243,8 @@ class FeatureOperator:
         tally_labels = np.zeros(labels,dtype=np.float32)
 
         if settings.PARALLEL > 1:
+            if settings.PROBE_DATASET == 'cub':
+                raise NotImplementedError
             psize = int(np.ceil(float(self.data.size()) / settings.PARALLEL))
             ranges = [(s, min(self.data.size(), s + psize)) for s in range(0, self.data.size(), psize) if
                       s < self.data.size()]
