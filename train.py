@@ -9,6 +9,7 @@ from tqdm import tqdm, trange
 import numpy as np
 from collections import defaultdict
 import contextlib
+import warnings
 
 import os
 import torch
@@ -41,6 +42,9 @@ if __name__ == '__main__':
     parser.add_argument('--debug', action='store_true')
 
     args = parser.parse_args()
+
+    if settings.DATASET != 'imagenet':
+        warnings.warn('Recommend imagenet-pretained model')
 
     torch.manual_seed(args.seed)
     random = np.random.seed(args.seed)
