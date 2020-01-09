@@ -29,7 +29,7 @@ if __name__ == '__main__':
             img = Image.open(bird_img_fname).convert('RGB')
             img_np = np.asarray(img)
 
-            bird_imgs_np[bird_img] = img_np
+            bird_imgs_np[os.path.join(bird_class, bird_img)] = img_np
 
         np_fname = os.path.join(class_dir, 'img.npz')
         np.savez_compressed(np_fname, **bird_imgs_np)
