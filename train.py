@@ -102,8 +102,7 @@ if __name__ == '__main__':
                 meters['loss'].update(loss.item(), batch_size)
                 meters['acc'].update(acc.item(), batch_size)
 
-                if batch_i % 100 == 0:
-                    progress_loader.set_description(f"{split.upper():<6} {epoch:3} loss {meters['loss'].avg:.4f} acc {meters['acc'].avg:.4f}")
+                progress_loader.set_description(f"{split.upper():<6} {epoch:3} loss {meters['loss'].avg:.4f} acc {meters['acc'].avg:.4f}")
 
         return {k: m.avg for k, m in meters.items()}
 
