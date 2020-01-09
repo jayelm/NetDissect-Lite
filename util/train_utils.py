@@ -20,10 +20,10 @@ def current_git_hash():
         subprocess.check_output(['git', 'diff-index', '--quiet', 'HEAD', '--'])
     except subprocess.CalledProcessError as grepexc:
         if grepexc.returncode == 1:
-            print("WARNING: Running experiments with unstaged changes.")
+            warnings.warn("Running experiments with unstaged changes.")
             unstaged_changes = True
     except FileNotFoundError:
-        print("Git not found")
+        warnings.warn("Git not found")
     try:
         git_hash = subprocess.check_output(['git', 'describe', '--always'
                                             ]).strip().decode('utf-8')

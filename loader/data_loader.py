@@ -15,6 +15,7 @@ from scipy.ndimage.interpolation import zoom
 from sklearn.model_selection import train_test_split
 from torchvision import transforms
 import torch
+from tqdm import tqdm
 
 from PIL import ImageEnhance
 
@@ -129,7 +130,7 @@ def load_cub(data_dir, random_state=None, max_classes=None):
     # Flatten
     imgs = []
     classes = []
-    for c, cimgs in class_imgs.items():
+    for c, cimgs in tqdm(class_imgs.items(), desc='Loading CUB classes'):
         for k in cimgs.keys():
             imgs.append(cimgs[k])
             classes.append(c2i[c])
