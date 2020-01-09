@@ -27,12 +27,19 @@ OUTPUT_FOLDER = f"result/pytorch_{MODEL}_{DATASET}_{PROBE_DATASET}{'_disj' if FO
 # TALLY_BATCH_SIZE: batch size used in tallying
 # INDEX_FILE: if you turn on the TEST_MODE, actually you should provide this file on your own
 
-if MODEL != 'alexnet':
-    DATA_DIRECTORY = 'dataset/broden1_224'
-    IMG_SIZE = 224
-else:
-    DATA_DIRECTORY = 'dataset/broden1_227'
-    IMG_SIZE = 227
+if PROBE_DATASET == 'broden':
+    if MODEL != 'alexnet':
+        DATA_DIRECTORY = 'dataset/broden1_224'
+        IMG_SIZE = 224
+    else:
+        DATA_DIRECTORY = 'dataset/broden1_227'
+        IMG_SIZE = 227
+elif PROBE_DATASET == 'cub':
+    if MODEL != 'alexnet':
+        DATA_DIRECTORY = 'dataset/CUB_200_2011'
+        IMG_SIZE = 224
+    else:
+        raise NotImplementedError
 
 if DATASET == 'places365':
     NUM_CLASSES = 365

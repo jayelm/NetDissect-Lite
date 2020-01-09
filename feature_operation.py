@@ -8,6 +8,7 @@ import util.vecquantile as vecquantile
 import multiprocessing.pool as pool
 from loader.data_loader.broden import load_csv
 from loader.data_loader.broden import SegmentationData, SegmentationPrefetcher
+from loader.data_loader.cub import load_cub, CUBPrefetcher
 from tqdm import tqdm, trange
 import csv
 
@@ -19,11 +20,17 @@ def hook_feature(module, inp, output):
 class FeatureOperator:
 
     def __init__(self):
-        if not os.path.exists(settings.OUTPUT_FOLDER):
-            os.makedirs(os.path.join(settings.OUTPUT_FOLDER, 'image'))
-        self.data = SegmentationData(settings.DATA_DIRECTORY, categories=settings.CATAGORIES)
-        self.loader = SegmentationPrefetcher(self.data,categories=['image'],once=True,batch_size=settings.BATCH_SIZE)
-        self.mean = [109.5388,118.6897,124.6901]
+        os.makedirs(os.path.join(settings.OUTPUT_FOLDER, 'image'), exist_ok=True)
+        if settings.PROBE_DATASET == 'broden':
+            self.data = SegmentationData(settings.DATA_DIRECTORY, categories=settings.CATAGORIES)
+            self.loader = SegmentationPrefetcher(self.data,categories=['image'],once=True,batch_size=settings.BATCH_SIZE)
+            self.mean = [109.5388,118.6897,124.6901]
+        elif settings.PROBE_DATASET == 'cub':
+            self.data = load_cub(settings.DATA_DIRECTORY, train_only=True)
+            self.loader = CUBPrefetcher(self.data, once=True, batch_size=settings.BATCH_SIZE)
+            # Unused
+            self.mean = None
+
 
     def feature_extraction(self, model=None, memmap=True):
         loader = self.loader

@@ -4,7 +4,7 @@ Train a model for CUB classification
 
 import settings
 from loader.model_loader import loadmodel
-from loader.data_loader.cub import load_cub
+from loader.data_loader.cub import load_cub, to_dataloader
 from tqdm import tqdm, trange
 import numpy as np
 from collections import defaultdict
@@ -56,9 +56,8 @@ if __name__ == '__main__':
 
     datasets = load_cub(args.data_dir, random_state=random,
                         max_classes=5 if args.debug else None)
-    to_loader = lambda d: DataLoader(d, batch_size=args.batch_size,
-                                     shuffle=True, pin_memory=True)
-    dataloaders = {s: to_loader(d) for s, d in datasets.items()}
+    dataloaders = {s: to_dataloader(d, batch_size=args.batch_size)
+                   for s, d in datasets.items()}
 
     model = loadmodel(noop)
     # Replace the last layer

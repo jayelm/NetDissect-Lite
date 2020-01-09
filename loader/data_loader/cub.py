@@ -7,7 +7,7 @@ import signal
 import csv
 import settings
 import numpy as np
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from imageio import imread
 from multiprocessing import Pool, cpu_count
 from multiprocessing.pool import ThreadPool
@@ -16,6 +16,8 @@ from sklearn.model_selection import train_test_split
 from torchvision import transforms
 import torch
 from tqdm import tqdm
+from torch.utils.data import DataLoader
+import pandas as pd
 
 from PIL import ImageEnhance
 
@@ -119,7 +121,7 @@ class TransformLoader:
         return self.parse_transform('Normalize')
 
 
-def load_cub(data_dir, random_state=None, max_classes=None):
+def load_cub(data_dir, random_state=None, max_classes=None, train_only=False):
     class_names = sorted(os.listdir(os.path.join(data_dir, 'images')))
     c2i = dict((v, k) for k, v in enumerate(class_names))
     if max_classes is not None:
@@ -128,24 +130,56 @@ def load_cub(data_dir, random_state=None, max_classes=None):
         cn: np.load(os.path.join(data_dir, 'images', cn, 'img.npz'))
         for cn in class_names
     }
+    # Load attributes
+    index_fname = os.path.join(data_dir, 'images.txt')
+    index = pd.read_csv(os.path.join(data_dir, 'images.txt'), names=['image_id', 'image_name'], sep=' ')
+    name2id = dict(zip(index.image_name, index.image_id))
+    id2name = {v: k for k, v in name2id.items()}
+    attr_names_fname = os.path.join(data_dir, 'attributes', 'attributes.txt')
+    attr_names = pd.read_csv(attr_names_fname, names=['attribute_id', 'attribute_name'],
+                             sep=' ')
+    attr_names['category'], attr_names['value'] = zip(*attr_names.attribute_name.str.split('::'))
+    attr_names2id = dict(zip(attr_names.attribute_name, attr_names.attribute_id))
+    id2attr_names = {v: k for k, v in attr_names2id.items()}
+
+    attrs_fname = os.path.join(data_dir, 'attributes', 'image_attribute_labels.txt')
+    attrs = pd.read_csv(attrs_fname, names=['image_id', 'attribute_id', 'is_present', 'certainty_id', 'time'],
+                        sep=' ')
+    id2attrs = defaultdict(dict)
+    for img_id, img_name in id2name.items():
+        img_attrs = attrs[attrs['image_id'] == img_id]
+        # Should already be sorted, but double check
+        assert img_attrs.shape[0] == 312
+        img_attrs = img_attrs.sort_values('attribute_id')['attribute_id']
+        id2attrs[img_name] = img_attrs.to_numpy()
+
     # Flatten
     imgs = []
     classes = []
+    img_ids = []
+    attrs = []
     for c, cimgs in tqdm(class_imgs.items(), desc='Loading CUB classes'):
-        for k in cimgs.keys():
-            imgs.append(cimgs[k])
+        for img_name in cimgs.keys():
+            imgs.append(cimgs[img_name])
             classes.append(c2i[c])
+            img_ids.append(name2id[img_name])
+            attrs.append(id2attrs[img_name])
 
-    train, val, test = train_val_test_split(imgs, classes, val_size=0.15, test_size=0.15,
-                                            random_state=random_state)
     tloader = TransformLoader(224)
     train_transform = tloader.get_composed_transform(True)
-    test_transform = tloader.get_composed_transform(False)
-    return {
-        'train': CUBDataset(train, class_names, transform=train_transform),
-        'val': CUBDataset(val, class_names, transform=test_transform),
-        'test': CUBDataset(test, class_names, transform=test_transform),
-    }
+    if train_only:
+        train = [imgs, classes, attrs]
+        return CUBDataset(train, class_names, transform=train_transform)
+    else:
+        test_transform = tloader.get_composed_transform(False)
+        train, val, test = train_val_test_split(imgs, classes, attrs,
+                                                val_size=0.15, test_size=0.15,
+                                                random_state=random_state)
+        return {
+            'train': CUBDataset(train, class_names, transform=train_transform),
+            'val': CUBDataset(val, class_names, transform=test_transform),
+            'test': CUBDataset(test, class_names, transform=test_transform),
+        }
 
 
 class CUBDataset:
@@ -164,3 +198,37 @@ class CUBDataset:
 
     def __len__(self):
         return len(self.imgs)
+
+
+class CUBPrefetcher:
+    '''
+    Load CUB images and attributes.
+    This is mostly just a wrapper to satisfy the prefetcher API.
+    '''
+    def __init__(self, data, split=None, randomize=False,
+            segmentation_shape=None, categories=None, once=False,
+            start=None, end=None, batch_size=4, ahead=4, thread=False):
+        '''
+        Constructor arguments:
+        data: The CUBDataset to load.
+        split: None for no filtering, or 'train' or 'val' etc.
+        randomize: True to randomly shuffle order, or a random seed.
+        categories: a list of categories to include in each batch.
+        batch_size: number of data items for each batch.
+        ahead: the number of data items to prefetch ahead.
+        '''
+        self.cub = data
+        self.batch_size = batch_size
+        self.cub_loader = to_dataloader(self.cub, batch_size=batch_size)
+        self.indexes = range(0, len(self.cub))
+
+    def tensor_batches(self, bgr_mean=None):
+        return self.cub_loader
+
+    def __len__(self):
+        return len(self.cub_loader)
+
+
+def to_dataloader(dataset, batch_size=32):
+    return DataLoader(dataset, batch_size=batch_size,
+                      shuffle=True, pin_memory=True)
