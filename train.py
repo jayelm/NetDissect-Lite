@@ -4,7 +4,7 @@ Train a model for CUB classification
 
 import settings
 from loader.model_loader import loadmodel
-from loader.data_loader.broden import load_cub
+from loader.data_loader.cub import load_cub
 from tqdm import tqdm, trange
 import numpy as np
 from collections import defaultdict
