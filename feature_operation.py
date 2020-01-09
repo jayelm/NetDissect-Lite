@@ -72,7 +72,8 @@ class FeatureOperator:
                 inp.div_(255.0 * 0.224)
             if settings.GPU:
                 inp = inp.cuda()
-            logit = model.forward(inp)
+            with torch.no_grad():
+                logit = model.forward(inp)
             while np.isnan(logit.data.cpu().max()):
                 print("nan") #which I have no idea why it will happen
                 del features_blobs[:]
