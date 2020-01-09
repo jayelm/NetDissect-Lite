@@ -126,3 +126,5 @@ if __name__ == '__main__':
             metrics['best_val_loss'] = metrics['val_loss'][-1]
             metrics['best_epoch'] = epoch
             tutil.save_model(model, True, args.save_dir)
+
+        tutil.save_metrics(metrics, args.save_dir)
