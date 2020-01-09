@@ -6,8 +6,8 @@ import settings
 import util.upsample as upsample
 import util.vecquantile as vecquantile
 import multiprocessing.pool as pool
-from loader.data_loader import load_csv
-from loader.data_loader import SegmentationData, SegmentationPrefetcher
+from loader.data_loader.broden import load_csv
+from loader.data_loader.broden import SegmentationData, SegmentationPrefetcher
 from tqdm import tqdm, trange
 import csv
 

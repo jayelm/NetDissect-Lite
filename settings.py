@@ -3,15 +3,16 @@ GPU = True                                  # running on GPU is highly suggested
 TEST_MODE = False                           # turning on the testmode means the code will run on a small dataset.
 CLEAN = True                               # set to "True" if you want to clean the temporary large files after generating result
 MODEL = 'resnet18'                          # model arch: resnet18, alexnet, resnet50, densenet161
-DATASET = 'places365'                       # model trained on: places365 or imagenet
+DATASET = 'places365'                       # model trained on: places365, imagenet, or cub
+PROBE_DATASET = 'broden'                    # which dataset to probe with (broden or cub)
 QUANTILE = 0.005                            # the threshold used for activation
 SEG_THRESHOLD = 0.04                        # the threshold used for visualization
 SCORE_THRESHOLD = 0.04                      # the threshold used for IoU score (in HTML file)
 TOPN = 10                                   # to show top N image with highest activation for each unit
 PARALLEL = 1                                # how many process is used for tallying (Experiments show that 1 is the fastest)
 CATAGORIES = ["object", "part","scene","texture","color"] # concept categories that are chosen to detect: "object", "part", "scene", "material", "texture", "color"
-OUTPUT_FOLDER = "result/pytorch_"+MODEL+"_"+DATASET # result will be stored in this folder
-FORCE_DISJUNCTION = False   # Only output disjunctive concepts. (Otherwise, disjunctive concepts are only identified if they have the highest IoU relative to other categories)
+FORCE_DISJUNCTION = True   # Only output disjunctive concepts. (Otherwise, disjunctive concepts are only identified if they have the highest IoU relative to other categories)
+OUTPUT_FOLDER = f"result/pytorch_{MODEL}_{DATASET}_{PROBE_DATASET}{'_disj' if FORCE_DISJUNCTION else ''}"  # result will be stored in this folder
 
 ########### sub settings ###########
 # In most of the case, you don't have to change them.
@@ -44,6 +45,9 @@ if MODEL == 'resnet18':
         MODEL_PARALLEL = True
     elif DATASET == 'imagenet':
         MODEL_FILE = None
+        MODEL_PARALLEL = False
+    elif DATASET == 'cub':
+        MODEL_FILE = 'zoo/trained/resnet18_cub_finetune/model_best.pth'
         MODEL_PARALLEL = False
 elif MODEL == 'densenet161':
     FEATURE_NAMES = ['features']
