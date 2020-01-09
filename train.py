@@ -84,7 +84,7 @@ if __name__ == '__main__':
 
         progress_loader = tqdm(loader)
         with ctx:
-            for batch_i, (imgs, classes) in enumerate(progress_loader):
+            for batch_i, (imgs, classes, *_) in enumerate(progress_loader):
                 if settings.GPU:
                     imgs = imgs.cuda()
                     classes = classes.cuda()

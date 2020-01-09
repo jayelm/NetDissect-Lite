@@ -150,8 +150,8 @@ def load_cub(data_dir, random_state=None, max_classes=None, train_only=False):
         img_attrs = attrs[attrs['image_id'] == img_id]
         # Should already be sorted, but double check
         assert img_attrs.shape[0] == 312
-        img_attrs = img_attrs.sort_values('attribute_id')['attribute_id']
-        id2attrs[img_name] = img_attrs.to_numpy()
+        img_attrs = img_attrs.sort_values('attribute_id')['is_present']
+        id2attrs[img_name] = img_attrs.to_numpy().astype(np.uint8)
 
     # Flatten
     imgs = []
@@ -169,32 +169,38 @@ def load_cub(data_dir, random_state=None, max_classes=None, train_only=False):
     train_transform = tloader.get_composed_transform(True)
     if train_only:
         train = [imgs, classes, attrs]
-        return CUBDataset(train, class_names, transform=train_transform)
+        return CUBDataset(train, class_names, transform=train_transform,
+                          attr_metadata=attr_names)
     else:
         test_transform = tloader.get_composed_transform(False)
         train, val, test = train_val_test_split(imgs, classes, attrs,
                                                 val_size=0.15, test_size=0.15,
                                                 random_state=random_state)
         return {
-            'train': CUBDataset(train, class_names, transform=train_transform),
-            'val': CUBDataset(val, class_names, transform=test_transform),
-            'test': CUBDataset(test, class_names, transform=test_transform),
+            'train': CUBDataset(train, class_names, transform=train_transform,
+                                attr_metadata=attr_names),
+            'val': CUBDataset(val, class_names, transform=test_transform,
+                              attr_metadata=attr_names),
+            'test': CUBDataset(test, class_names, transform=test_transform,
+                               attr_metadata=attr_names),
         }
 
 
 class CUBDataset:
-    def __init__(self, tensors, class_names, transform=None):
-        self.imgs, self.classes = tensors
+    def __init__(self, tensors, class_names, transform=None, attr_metadata=None):
+        self.imgs, self.classes, self.attrs = tensors
         self.class_names = class_names
         self.n_classes = len(class_names)
         self.transform = transform
+        self.attr_metadata = attr_metadata
 
     def __getitem__(self, i):
         img = self.imgs[i]
         if self.transform is not None:
             img = self.transform(img)
+        attrs = self.attrs[i]
         c = self.classes[i]
-        return img, c
+        return img, c, attrs
 
     def __len__(self):
         return len(self.imgs)

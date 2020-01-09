@@ -26,7 +26,8 @@ class FeatureOperator:
             self.loader = SegmentationPrefetcher(self.data,categories=['image'],once=True,batch_size=settings.BATCH_SIZE)
             self.mean = [109.5388,118.6897,124.6901]
         elif settings.PROBE_DATASET == 'cub':
-            self.data = load_cub(settings.DATA_DIRECTORY, train_only=True)
+            self.data = load_cub(settings.DATA_DIRECTORY, train_only=True,
+                                 max_classes=5 if settings.TEST_MODE else None)
             self.loader = CUBPrefetcher(self.data, once=True, batch_size=settings.BATCH_SIZE)
             # Unused
             self.mean = None
