@@ -96,6 +96,8 @@ def generate_html_summary(ds, layer, maxfeature=None, features=None, thresholds=
                 image = imread(ds.filename(index))
                 mask = np.array(Image.fromarray(features[index][unit]).resize(image.shape[:2], resample=Image.BILINEAR))
                 mask = mask > thresholds[unit]
+                if settings.PROBE_DATASET == 'cub':
+                    mask = mask.T  # Needs to be transposed, not sure why
                 vis = (mask[:, :, numpy.newaxis] * 0.8 + 0.2) * image
                 if vis.shape[:2] != (imsize, imsize):
                     vis = np.array(Image.fromarray(vis).resize((imsize, imsize), resample=Image.BILINEAR))
