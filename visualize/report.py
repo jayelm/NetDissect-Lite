@@ -99,6 +99,8 @@ def generate_html_summary(ds, layer, maxfeature=None, features=None, thresholds=
                 if settings.PROBE_DATASET == 'cub':
                     mask = mask.T  # Needs to be transposed, not sure why
                 vis = (mask[:, :, numpy.newaxis] * 0.8 + 0.2) * image
+                if settings.PROBE_DATASET == 'cub':
+                    vis = vis.round().astype(np.uint8)
                 if vis.shape[:2] != (imsize, imsize):
                     vis = np.array(Image.fromarray(vis).resize((imsize, imsize), resample=Image.BILINEAR))
                 tiled[row*(imsize+gap):row*(imsize+gap)+imsize,

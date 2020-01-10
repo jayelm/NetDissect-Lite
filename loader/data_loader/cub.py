@@ -155,17 +155,12 @@ def load_cub(data_dir, random_state=None, max_classes=None, train_only=False,
     #  id2attr_names = {v: k for k, v in attr_names2id.items()}
 
     attrs_fname = os.path.join(data_dir, 'attributes', 'image_attribute_labels.txt')
-    attrs = pd.read_csv(attrs_fname, names=['image_id', 'attribute_id', 'is_present', 'certainty_id', 'time'],
-                        sep=' ')
-    attrs['image_id'] = attrs['image_id'] - 1
-    attrs['attribute_id'] = attrs['attribute_id'] - 1
-    id2attrs = defaultdict(dict)
-    for img_id, img_name in id2name.items():
-        img_attrs = attrs[attrs['image_id'] == img_id]
-        # Should already be sorted, but double check
-        assert img_attrs.shape[0] == 312
-        img_attrs = img_attrs.sort_values('attribute_id')['is_present']
-        id2attrs[img_name] = img_attrs.to_numpy().astype(np.uint8)
+    id2attrs = defaultdict(list)
+    with open(attrs_fname, 'r') as f:
+        for line in tqdm(f):
+            image_id, _, is_present, *_ = line.split()
+            id2attrs[int(image_id) - 1].append(int(is_present))
+    id2attrs = {k: np.array(v, dtype=np.uint8) for k, v in id2attrs.items()}
 
     # Load images in ascending image id order
     imgs = []
@@ -180,7 +175,7 @@ def load_cub(data_dir, random_state=None, max_classes=None, train_only=False,
         imgs.append(class_imgs[image_cl][image_name])
         classes.append(c2i[image_cl])
         img_ids.append(image_id)
-        attrs.append(id2attrs[image_name])
+        attrs.append(id2attrs[image_id])
     assert all(i == j for i, j in zip(img_ids, range(len(classes))))
 
     tloader = TransformLoader(224)
