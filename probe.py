@@ -5,6 +5,11 @@ from visualize.report import generate_html_summary
 from util.clean import clean
 from tqdm import tqdm
 
+
+def noop(*args, **kwargs):
+    return None
+
+
 fo = FeatureOperator()
 model = loadmodel(hook_feature)
 

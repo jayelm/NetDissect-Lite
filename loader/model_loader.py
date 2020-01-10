@@ -17,8 +17,9 @@ def loadmodel(hook_fn):
             model.load_state_dict(state_dict)
         else:
             model = checkpoint
-    for name in settings.FEATURE_NAMES:
-        model._modules.get(name).register_forward_hook(hook_fn)
+    if hook_fn is not None:
+        for name in settings.FEATURE_NAMES:
+            model._modules.get(name).register_forward_hook(hook_fn)
     if settings.GPU:
         model.cuda()
     model.eval()

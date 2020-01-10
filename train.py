@@ -18,9 +18,6 @@ from torch.utils.data import DataLoader
 
 from util import train_utils as tutil
 
-def noop(*args, **kwargs):
-    pass
-
 
 if __name__ == '__main__':
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
@@ -59,7 +56,7 @@ if __name__ == '__main__':
     dataloaders = {s: to_dataloader(d, batch_size=args.batch_size)
                    for s, d in datasets.items()}
 
-    model = loadmodel(noop)
+    model = loadmodel(None)
     # Replace the last layer
     model.fc = nn.Linear(in_features=512, out_features=datasets['train'].n_classes)
     # Re-move the model on/off GPU
