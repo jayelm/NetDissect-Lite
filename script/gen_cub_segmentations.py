@@ -95,9 +95,9 @@ if __name__ == '__main__':
     arrs = {bc: {} for bc in bird_classes}
     gt = {bc: np.load(os.path.join(args.cub_dir, 'images', bc, 'img.npz')) for
           bc in bird_classes}
-    with mp.Pool(args.workers) as p:
+    with mp.Pool(args.workers) as pool:
         with tqdm(total=images.shape[0], desc='Classes') as pbar:
-            for (seg_arr, (bc, img_name)) in map(segment_class, mp_args_generator()):
+            for (seg_arr, (bc, img_name)) in pool.imap_unordered(segment_class, mp_args_generator()):
                 arrs[bc][img_name] = seg_arr
                 assert bc in gt and img_name in gt[bc]
                 pbar.update()
