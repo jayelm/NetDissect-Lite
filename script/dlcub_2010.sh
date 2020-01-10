@@ -13,7 +13,7 @@ pushd dataset/CUB_200
 echo "Downloading CUB README"
 wget --progress=bar \
     http://www.vision.caltech.edu/visipedia-data/CUB-200/README.txt \
-    -o README.txt
+    -O README.txt
 
 echo "Downloading CUB images"
 wget --progress=bar \
