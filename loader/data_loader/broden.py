@@ -17,6 +17,8 @@ from torchvision import transforms
 import torch
 from tqdm import tqdm
 
+from . import data_utils as du
+
 from PIL import ImageEnhance
 
 def load_csv(filename, readfields=None):
@@ -118,7 +120,7 @@ class SegmentationData(AbstractSegmentation):
             self.category_label[cat] = build_dense_label_array(
                     c_data, key='code')
 
-        self.labelcat = self.onehot(self.primary_categories_per_index())
+        self.labelcat = du.onehot(self.primary_categories_per_index())
 
     def primary_categories_per_index(ds):
         '''
@@ -140,20 +142,6 @@ class SegmentationData(AbstractSegmentation):
                 for ic, cat in enumerate(categories))
             result.append(maxcat)
         return np.array(result)
-
-    def onehot(self, arr, minlength=None):
-        '''
-        Expands an array of integers in one-hot encoding by adding a new last
-        dimension, leaving zeros everywhere except for the nth dimension, where
-        the original array contained the integer n.  The minlength parameter is
-        used to indcate the minimum size of the new dimension.
-        '''
-        length = np.amax(arr) + 1
-        if minlength is not None:
-            length = max(minlength, length)
-        result = np.zeros(arr.shape + (length,), dtype=np.float32)
-        result[tuple(list(np.indices(arr.shape)) + [arr])] = 1
-        return result
 
     def all_names(self, category, j):
         '''All English synonyms for the given label'''

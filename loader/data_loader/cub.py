@@ -17,7 +17,10 @@ from torchvision import transforms
 import torch
 from tqdm import tqdm
 from torch.utils.data import DataLoader
+from torch.nn.functional import one_hot
 import pandas as pd
+
+from . import data_utils as du
 
 from PIL import ImageEnhance
 
@@ -148,8 +151,8 @@ def load_cub(data_dir, random_state=None, max_classes=None, train_only=False,
                              sep=' ')
     attr_names['attribute_id'] = attr_names['attribute_id'] - 1
     attr_names['category'], attr_names['value'] = zip(*attr_names.attribute_name.str.split('::'))
-    attr_names2id = dict(zip(attr_names.attribute_name, attr_names.attribute_id))
-    id2attr_names = {v: k for k, v in attr_names2id.items()}
+    #  attr_names2id = dict(zip(attr_names.attribute_name, attr_names.attribute_id))
+    #  id2attr_names = {v: k for k, v in attr_names2id.items()}
 
     attrs_fname = os.path.join(data_dir, 'attributes', 'image_attribute_labels.txt')
     attrs = pd.read_csv(attrs_fname, names=['image_id', 'attribute_id', 'is_present', 'certainty_id', 'time'],
@@ -212,9 +215,20 @@ class CUBDataset:
         self.attr_names = list(self.attr_metadata['attribute_name'])
         self.attr2cat = dict(zip(self.attr_metadata['attribute_id'],
                                  self.attr_metadata['category']))
+        self.cat2id = dict((v, k) for k, v in enumerate(self.attr_metadata['category'].unique()))
+        # From attr ids to category ids
+        self.labelcat = du.onehot(self.primary_categories_per_index())
+
+    def primary_categories_per_index(self):
+        return np.array([self.cat2id[cat] for cat in self.attr_metadata['category']])
 
     def category_names(self):
         return self.attr_categories
+
+    def name(self, category, j):
+        if category is not None:
+            raise NotImplementedError
+        return self.attr_names[j]
 
     @property
     def label(self):

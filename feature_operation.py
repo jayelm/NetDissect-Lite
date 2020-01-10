@@ -219,6 +219,10 @@ class FeatureOperator:
                             # still not doing labels, but categories!)
                             # Start adding these intersections to "tally both"
                             tally_both[unit_id,:len(tally_bt)] += tally_bt
+                        else:
+                            # Initialize tally_cat anyways
+                            tally_cat = np.zeros(len(data.category_names()),
+                                                 dtype=np.float32)
                         for scalar in scalars:
                             tally_cat += data.labelcat[scalar]
                             tally_both[unit_id, scalar] += len(indexes)
