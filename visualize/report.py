@@ -10,6 +10,7 @@ import visualize.bargraph as bargraph
 import settings
 import numpy as np
 from PIL import Image
+import warnings
 # unit,category,label,score
 
 replacements = [(re.compile(r[0]), r[1]) for r in [
@@ -42,10 +43,15 @@ def generate_html_summary(ds, layer, maxfeature=None, features=None, thresholds=
     rendered_order = []
     barfn = 'image/%s-bargraph.svg' % (
             expdir.fn_safe(layer))
-    bargraph.bar_graph_svg(ed, layer,
-                           tally_result=tally_result,
-                           rendered_order=rendered_order,
-                           save=ed.filename('html/' + barfn))
+    try:
+        bargraph.bar_graph_svg(ed, layer,
+                               tally_result=tally_result,
+                               rendered_order=rendered_order,
+                               save=ed.filename('html/' + barfn))
+    except ValueError as e:
+        # Probably empty
+        warnings.warn(f"could not make svg bargraph: {e}")
+        pass
     html.extend([
         '<div class="histogram">',
         '<img class="img-fluid" src="%s" title="Summary of %s %s">' % (
@@ -93,7 +99,12 @@ def generate_html_summary(ds, layer, maxfeature=None, features=None, thresholds=
             for x, index in enumerate(top[unit]):
                 row = x // gridwidth
                 col = x % gridwidth
-                image = imread(ds.filename(index))
+                if settings.PROBE_DATASET == 'cub':
+                    # Images can be different in CUB - stick with Image.open for more reliable
+                    # operation
+                    image = np.array(Image.open(ds.filename(index)).convert('RGB'))
+                else:
+                    image = imread(ds.filename(index))
                 mask = np.array(Image.fromarray(features[index][unit]).resize(image.shape[:2], resample=Image.BILINEAR))
                 mask = mask > thresholds[unit]
                 if settings.PROBE_DATASET == 'cub':
