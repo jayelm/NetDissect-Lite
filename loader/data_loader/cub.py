@@ -157,7 +157,7 @@ def load_cub(data_dir, random_state=None, max_classes=None, train_only=False,
     attrs_fname = os.path.join(data_dir, 'attributes', 'image_attribute_labels.txt')
     id2attrs = defaultdict(list)
     with open(attrs_fname, 'r') as f:
-        for line in tqdm(f):
+        for line in tqdm(f, desc='Loading attributes', total=3677856):
             image_id, _, is_present, *_ = line.split()
             id2attrs[int(image_id) - 1].append(int(is_present))
     id2attrs = {k: np.array(v, dtype=np.uint8) for k, v in id2attrs.items()}
