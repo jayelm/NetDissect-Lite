@@ -188,7 +188,7 @@ def load_cub(data_dir, random_state=None, max_classes=None, train_only=False,
     if train_only:
         train = [imgs, classes, attrs]
         return CUBDataset(train, class_names, transform=train_transform,
-                          attr_metadata=attr_names)
+                          attr_metadata=attr_names, image_metadata=index)
     else:
         test_transform = tloader.get_composed_transform(False)
         train, val, test = train_val_test_split(imgs, classes, attrs,
@@ -196,21 +196,23 @@ def load_cub(data_dir, random_state=None, max_classes=None, train_only=False,
                                                 random_state=random_state)
         return {
             'train': CUBDataset(train, class_names, transform=train_transform,
-                                attr_metadata=attr_names),
+                                attr_metadata=attr_names, image_metadata=index),
             'val': CUBDataset(val, class_names, transform=test_transform,
-                              attr_metadata=attr_names),
+                              attr_metadata=attr_names, image_metadata=index),
             'test': CUBDataset(test, class_names, transform=test_transform,
-                               attr_metadata=attr_names),
+                               attr_metadata=attr_names, image_metadata=index),
         }
 
 
 class CUBDataset:
-    def __init__(self, tensors, class_names, transform=None, attr_metadata=None):
+    def __init__(self, tensors, class_names, transform=None, attr_metadata=None,
+                 image_metadata=None):
         self.imgs, self.classes, self.attrs = tensors
         self.class_names = class_names
         self.n_classes = len(class_names)
         self.transform = transform
         self.attr_metadata = attr_metadata
+        self.image_metadata = image_metadata
         self.attr_categories = list(self.attr_metadata['category'].unique())
         self.attr_names = list(self.attr_metadata['attribute_name'])
         self.attr2cat = dict(zip(self.attr_metadata['attribute_id'],
@@ -245,6 +247,11 @@ class CUBDataset:
         cm['sh'] = 224
         cm['sw'] = 224
         return cm
+
+    def filename(self, i):
+        fname = self.image_metadata.loc[i, 'image_name']
+        fname = os.path.join(settings.DATA_DIRECTORY, 'images', fname)
+        return fname
 
     def to_concept_map(self, attrs, ids):
         return [self.attr_to_cm(a, i) for a, i in zip(attrs, ids)]
