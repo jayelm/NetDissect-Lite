@@ -8,7 +8,7 @@ import util.vecquantile as vecquantile
 import multiprocessing.pool as pool
 from loader.data_loader.broden import load_csv
 from loader.data_loader.broden import SegmentationData, SegmentationPrefetcher
-from loader.data_loader.cub import load_cub, CUBPrefetcher
+from loader.data_loader.cub import load_cub, CUBSegmentationPrefetcher
 from tqdm import tqdm, trange
 import csv
 
@@ -29,7 +29,7 @@ class FeatureOperator:
             self.data = load_cub(settings.DATA_DIRECTORY, train_only=True,
                                  max_classes=5 if settings.TEST_MODE else None,
                                  train_augment=False)
-            self.loader = CUBPrefetcher(self.data, once=True, batch_size=settings.BATCH_SIZE)
+            self.loader = CUBSegmentationPrefetcher(self.data, once=True, batch_size=settings.BATCH_SIZE)
             # Unused
             self.mean = None
 
@@ -139,10 +139,10 @@ class FeatureOperator:
                                         once=True, batch_size=settings.TALLY_BATCH_SIZE,
                                         ahead=settings.TALLY_AHEAD, start=start, end=end)
         else:
-            pd = CUBPrefetcher(data, categories=data.category_names(),
-                               once=True, batch_size=settings.TALLY_BATCH_SIZE,
-                               ahead=settings.TALLY_AHEAD, start=start,
-                               end=end)
+            pd = CUBSegmentationPrefetcher(data, categories=data.category_names(),
+                                           once=True, batch_size=settings.TALLY_BATCH_SIZE,
+                                           ahead=settings.TALLY_AHEAD, start=start,
+                                           end=end)
         count = start
         for batch in tqdm(pd.batches(), desc='Label probing',
                           total=int(np.ceil(end / settings.TALLY_BATCH_SIZE))):

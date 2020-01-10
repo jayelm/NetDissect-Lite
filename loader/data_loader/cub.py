@@ -19,10 +19,31 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from torch.nn.functional import one_hot
 import pandas as pd
+from PIL import Image
+from torchvision.transforms import CenterCrop
 
 from . import data_utils as du
 
 from PIL import ImageEnhance
+
+
+PARTS = [
+    'back',
+    'beak',
+    'belly',
+    'breast',
+    'crown',
+    'forehead',
+    'left eye',
+    'left leg',
+    'left wing',
+    'nape',
+    'right eye',
+    'right leg',
+    'right wing',
+    'tail',
+    'throat',
+]
 
 
 transformtypedict = dict(
@@ -217,19 +238,27 @@ class CUBDataset:
         self.labelcat = du.onehot(self.primary_categories_per_index())
 
     def primary_categories_per_index(self):
-        return np.array([self.cat2id[cat] for cat in self.attr_metadata['category']])
+        # ATTRS
+        #  return np.array([self.cat2id[cat] for cat in self.attr_metadata['category']])
+        return np.zeros(len(PARTS), dtype=np.int)
 
     def category_names(self):
-        return self.attr_categories
+        # ATTRS
+        #  return self.attr_categories
+        return ['part']
 
     def name(self, category, j):
-        if category is not None:
-            raise NotImplementedError
-        return self.attr_names[j]
+        # ATTRS
+        #  if category is not None:
+            #  raise NotImplementedError
+        #  return self.attr_names[j]
+        return PARTS[j]
 
     @property
     def label(self):
-        return self.attr_names
+        # ATTRS
+        #  return self.attr_names
+        return PARTS
 
     def attr_to_cm(self, attr, idx):
         is_present = np.argwhere(attr).squeeze()
@@ -267,14 +296,15 @@ class CUBDataset:
         return len(self)
 
 
-class CUBPrefetcher:
+class CUBSegmentationPrefetcher:
     '''
     Load CUB images and attributes.
     This is mostly just a wrapper to satisfy the prefetcher API.
+    Loads segmentations too
     '''
     def __init__(self, data, split=None, randomize=False,
-            segmentation_shape=None, categories=None, once=False,
-            start=None, end=None, batch_size=4, ahead=4, thread=False):
+                 segmentation_shape=None, categories=None, once=False,
+                 start=None, end=None, batch_size=4, ahead=4, thread=False):
         '''
         Constructor arguments:
         data: The CUBDataset to load.
@@ -289,6 +319,11 @@ class CUBPrefetcher:
         self.cub_loader = to_dataloader(self.cub, batch_size=batch_size,
                                         shuffle=randomize)
         self.indexes = range(0, len(self.cub))
+        self.segmentations = {
+            cn: np.load(os.path.join(settings.DATA_DIRECTORY, 'parts', 'segmentations', f'{cn}.npz'))
+            for cn in data.class_names
+        }
+        self.seg_transformer = CenterCrop(size=(244, 244))
 
     def categories(self):
         return self.cub.category_names()
@@ -298,12 +333,36 @@ class CUBPrefetcher:
         return self.cub.label
 
     def batches(self):
-        # Get concept map
-        # Assume FULL segmentation height here.
-        for *_, ids, attrs in self.cub_loader:
-            attrs = attrs.numpy()
-            cm = self.cub.to_concept_map(attrs, ids)
+        for *_, ids, _ in self.cub_loader:
+            cm = self.fetch_segmentations(ids.numpy())
             yield cm
+
+    def fetch_segmentations(self, ids):
+        cms = []
+        for i in ids:
+            cm = {}
+            name = self.cub.image_metadata.loc[i, 'image_name']
+            bc, img_name = name.split('/')
+            cm['fn'] = name
+            cm['i'] = i
+            # Just one category for now
+            seg = self.segmentations[bc][name]
+            seg = Image.fromarray(seg).resize((257, 257), resample=Image.NEAREST)
+            seg = np.array(self.seg_transformer(seg))
+            cm['part'] = seg
+            cm['sh'] = 224
+            cm['sw'] = 224
+            cms.append(cm)
+        return cms
+
+    # ATTRS
+    #  def batches(self):
+        #  # Get concept map
+        #  # Assume FULL segmentation height here.
+        #  for *_, ids, attrs in self.cub_loader:
+            #  attrs = attrs.numpy()
+            #  cm = self.cub.to_concept_map(attrs, ids)
+            #  yield cm
 
     def tensor_batches(self, bgr_mean=None):
         return self.cub_loader
