@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# python write_CUB_filelist.py
-#!/usr/bin/env bash
 set -e
 
 # Start from parent directory of script
