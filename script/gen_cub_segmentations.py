@@ -104,4 +104,4 @@ if __name__ == '__main__':
 
     for cl, cl_arrs in tqdm(arrs.items(), total=len(arrs), desc='Saving'):
         fname = os.path.join(args.cub_dir, 'parts', 'segmentations', f'{cl}.npz')
-        np.savez_compressed(fname, cl_arrs)
+        np.savez_compressed(fname, **cl_arrs)
