@@ -225,7 +225,7 @@ class FeatureOperator:
 
         # Does this part need multiprocessing?
         records = []
-        for u in range(units):
+        for u in trange(units, desc='IoU - primitives'):
             best_lab = None
             best_iou = 0.0
             for lab in mc.labels:
