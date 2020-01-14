@@ -246,19 +246,6 @@ class FeatureOperator:
             }
             records.append(r)
 
-        #  with mp.Pool(settings.PARALLEL) as p:
-            #  for (u, best_lab, best_iou) in p.imap_unordered(FeatureOperator.compute_best_iou,
-                                                            #  tqdm(mp_args, desc='Computing best iou', total=units)):
-                #  best_cat = pcats[best_lab]
-                #  best_name = data.name(None, best_lab)
-                #  r = {
-                    #  'unit': (u + 1),
-                    #  'category': categories[best_cat],
-                    #  'label': best_name,
-                    #  'score': best_iou
-                #  }
-                #  records.append(r)
-
         tally_df = pd.DataFrame(records)
         tally_df.to_csv(os.path.join(settings.OUTPUT_FOLDER, 'tally.csv'),
                         index=False)
