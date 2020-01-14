@@ -7,6 +7,7 @@ import util.upsample as upsample
 import pandas as pd
 import util.vecquantile as vecquantile
 import multiprocessing.pool as pool
+import multiprocessing as mp
 from loader.data_loader.broden import load_csv
 from loader.data_loader.broden import SegmentationData, SegmentationPrefetcher, MaskCatalog
 from loader.data_loader.cub import load_cub, CUBSegmentationPrefetcher
@@ -142,11 +143,43 @@ class FeatureOperator:
             FeatureOperator.tally_job_std(args)
 
     @staticmethod
+    def get_uhits(args):
+        u, ufeat, uthresh, img2cat, mask_shape = args
+        uidx = [i for i, uf in enumerate(ufeat) if uf.max() > uthresh]
+        ufeat = np.array([upsample_features(ufeat[i], mask_shape) for i in uidx])
+        ucats = np.array([img2cat[i] for i in uidx])
+
+        # Get indices where threshold is exceeded
+        uhitidx = [np.argwhere(uf > uthresh) for uf in ufeat]
+
+        # Get lengths of those indicees
+        uhits = np.array([len(hidx) for hidx in uhitidx])
+        ucathits = (ucats * uhits[:, np.newaxis]).sum(0)
+
+        return u, uidx, uhitidx, ucathits
+
+    @staticmethod
+    def compute_tally_labels(args):
+        tlab = 0
+        lab, masks, mask_shape = args
+        for m in masks:
+            if m is None:
+                continue
+            elif len(m.shape) == 0:
+                tlab += mask_shape[0] * mask_shape[1]
+            else:
+                tlab += m.sum()
+        return lab, tlab
+
+    @staticmethod
     def tally_job_search(args):
         features, data, threshold, tally_labels, tally_units, tally_units_cat, tally_both, start, end = args
+
         categories = data.category_names()
         pcpi = data.primary_categories_per_index()
+        pcats = data.primary_categories_per_index()
         units = features.shape[1]
+
         if settings.PROBE_DATASET == 'broden':
             pf = SegmentationPrefetcher(data, categories=categories,
                                         once=True, batch_size=settings.TALLY_BATCH_SIZE,
@@ -158,12 +191,12 @@ class FeatureOperator:
                                            end=end)
         # Cache all masks so they can be looked up
         mc = MaskCatalog(pf)
+
         # Compute label tallies
         tally_labels = {}
         for lab in mc.labels:
             tlab = 0
-            masks = mc.masks[lab]
-            for m in masks:
+            for m in mc.masks[lab]:
                 if m is None:
                     continue
                 elif len(m.shape) == 0:
@@ -173,39 +206,36 @@ class FeatureOperator:
             tally_labels[lab] = tlab
 
         tally_units_cat = np.zeros((units, len(data.category_names())), dtype=np.int64)
-        pcats = data.primary_categories_per_index()
         records = []
-        for u in trange(units, desc='Tallying primitives'):
-            ufeat = features[:, u]
-            # ONLY upsample if threshold is passed
-            uthresh = threshold[u]
-            # Filter out features that don't exceed threshold,
-            # upsample the ones that are left
-            uidx = [i for i, uf in enumerate(ufeat) if uf.max() > uthresh]
-            ufeat = np.array([upsample_features(ufeat[i], mc.mask_shape) for i in uidx])
-            ucats = np.array([mc.img2cat[i] for i in uidx])
 
-            # Get indices where threshold is exceeded
-            uhitidx = [np.argwhere(uf > uthresh) for uf in ufeat]
+        # Get unit information (this is expensive (upsampling) and where most of the work is done)
+        mp_args = (
+            (u, features[:, u], threshold[u], mc.img2cat, mc.mask_shape)
+            for u in range(units)
+        )
+        all_uidx = [None for _ in range(units)]
+        all_uhitidx = [None for _ in range(units)]
+        with mp.Pool(settings.PARALLEL) as p:
+            for (u, uidx, uhitidx, ucathits) in p.imap_unordered(FeatureOperator.get_uhits,
+                                                                 tqdm(mp_args, desc='Tallying units', total=units)):
+                # Shouldn't need longs here (less than 65553)
+                all_uidx[u] = np.array(uidx, dtype=np.uint32)
+                all_uhitidx[u] = [np.array(uhi, dtype=np.uint32) for uhi in uhitidx]
+                tally_units_cat[u] = ucathits
 
-            # Get lengths of those indicees
-            uhits = np.array([len(hidx) for hidx in uhitidx])
-            ucathits = (ucats * uhits[:, np.newaxis]).sum(0)
-            tally_units_cat[u] = ucathits
-
+        # Does this part need multiprocessing?
+        records = []
+        for u in range(units):
             best_lab = None
             best_iou = 0.0
             for lab in mc.labels:
-                # We need the cat of this label so that we only give
                 cat_i = pcpi[lab]
                 masks = mc.masks[lab]
                 lab_iou = FeatureOperator.compute_iou(
-                    uidx, uhitidx, masks, tally_units_cat[u, cat_i], tally_labels[lab])
+                    all_uidx[u], all_uhitidx[u], masks, tally_units_cat[u, cat_i], tally_labels[lab])
                 if lab_iou > best_iou:
                     best_iou = lab_iou
                     best_lab = lab
-
-            # This may just be a subset of masks
             best_cat = pcats[best_lab]
             best_name = data.name(None, best_lab)
             r = {
@@ -216,11 +246,38 @@ class FeatureOperator:
             }
             records.append(r)
 
+        #  with mp.Pool(settings.PARALLEL) as p:
+            #  for (u, best_lab, best_iou) in p.imap_unordered(FeatureOperator.compute_best_iou,
+                                                            #  tqdm(mp_args, desc='Computing best iou', total=units)):
+                #  best_cat = pcats[best_lab]
+                #  best_name = data.name(None, best_lab)
+                #  r = {
+                    #  'unit': (u + 1),
+                    #  'category': categories[best_cat],
+                    #  'label': best_name,
+                    #  'score': best_iou
+                #  }
+                #  records.append(r)
+
         tally_df = pd.DataFrame(records)
         tally_df.to_csv(os.path.join(settings.OUTPUT_FOLDER, 'tally.csv'),
                         index=False)
         return records
 
+    @staticmethod
+    def compute_best_iou(args):
+        u, labels, pcpi, all_masks, uidx, uhitidx, tally_uc, tally_labels = args
+        best_lab = None
+        best_iou = 0.0
+        for lab in labels:
+            cat_i = pcpi[lab]
+            masks = all_masks[lab]
+            lab_iou = FeatureOperator.compute_iou(
+                uidx, uhitidx, masks, tally_uc[cat_i], tally_labels[lab])
+            if lab_iou > best_iou:
+                best_iou = lab_iou
+                best_lab = lab
+        return u, best_lab, best_iou
 
     @staticmethod
     def compute_iou(uidx, uhitidx, masks, tally_unit, tally_label):
@@ -360,7 +417,8 @@ class FeatureOperator:
         tally_units_cat = np.zeros((units, len(categories)), dtype=np.float32)
         tally_labels = np.zeros(labels,dtype=np.float32)
 
-        if settings.PARALLEL > 1:
+        # Don't parallelize here for now - 1 is fastest for standard; for masks, we'll parallelize in tally_job
+        if False and settings.PARALLEL > 1:
             if settings.PROBE_DATASET == 'cub':
                 raise NotImplementedError
             psize = int(np.ceil(float(self.data.size()) / settings.PARALLEL))
