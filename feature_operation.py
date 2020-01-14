@@ -177,18 +177,22 @@ class FeatureOperator:
         records = []
         for u in trange(units, desc='Tallying primitives'):
             ufeat = features[:, u]
+            # ONLY upsample if threshold is passed
             ufeat = [upsample_features(uf, mc.mask_shape)
                      for uf in ufeat]
             uthresh = threshold[u]
+            # Filter out features that don't exceed threshold,
+            # upsample the ones that are left
+            ufeat = [upsample_features(uf, mc.mask_shape) for uf in ufeat
+                     if uf.max() > uthresh]
             uhits = np.array([uf > uthresh for uf in ufeat])
             tally_units[u] = uhits.sum()
 
             ious = np.zeros(len(mc.labels), dtype=np.float32)
-            for i, lab in enumerate(mc.labels):
+            for i, lab in enumerate(tqdm(mc.labels, desc='labels')):
                 masks = mc.masks[lab]
                 lab_iou = FeatureOperator.compute_iou(
-                    uhits, masks, tally_units[u], tally_labels[i],
-                    shape=mc.mask_shape)
+                    uhits, masks, tally_units[u], tally_labels[i])
                 ious[i] = lab_iou
 
             # This may just be a subset of masks
@@ -212,7 +216,7 @@ class FeatureOperator:
 
 
     @staticmethod
-    def compute_iou(uhits, masks, tally_unit, tally_label, shape=(112, 112)):
+    def compute_iou(uhits, masks, tally_unit, tally_label):
         tally_both = 0
         for i, hits in enumerate(uhits):
             # Mask for this image
@@ -225,7 +229,8 @@ class FeatureOperator:
                 tally_both += hits.sum()
             else:
                 # Intersection
-                both = mask[hits[:, 0], hits[:, 1]]
+                indices = np.argwhere(hits)
+                both = mask[indices[:, 0], indices[:, 1]]
                 tally_both += both.sum()
 
         iou = (tally_both) / (tally_label + tally_unit - tally_both + 1e-10)
