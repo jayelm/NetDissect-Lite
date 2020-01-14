@@ -336,19 +336,6 @@ class FeatureOperator:
         if savepath and os.path.exists(csvpath):
             return load_csv(csvpath)
 
-        # For each neuron...
-        # (1) get threshold activations
-        # (2) start the formula search, computiong IoU for f
-        # Formula search looks like this:
-        # First compute IoU for all primitives
-        # (disjunctions) - may as well compute IoU for all disjunctions
-        # eventually, beam search: here are the formulas with highest IoU. What to do next? Combine them?
-        # (is it combine or just beam search?)
-        # Speed considerations:
-        # (1) CACHE masks for more complicated formulas?
-        # (2) CACHE metadata for more complicated formulas?
-        # (3) Speed
-        # Don't do premature optimization. Just load things on the fly and see how long it takes.
         units = features.shape[1]
         labels = len(self.data.label)
         categories = self.data.category_names()
