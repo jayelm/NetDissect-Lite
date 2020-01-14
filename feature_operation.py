@@ -12,6 +12,7 @@ from loader.data_loader.broden import SegmentationData, SegmentationPrefetcher, 
 from loader.data_loader.cub import load_cub, CUBSegmentationPrefetcher
 from tqdm import tqdm, trange
 import csv
+from collections import Counter
 
 features_blobs = []
 def hook_feature(module, inp, output):
@@ -143,23 +144,23 @@ class FeatureOperator:
     @staticmethod
     def tally_job_search(args):
         features, data, threshold, tally_labels, tally_units, tally_units_cat, tally_both, start, end = args
+        categories = data.category_names()
+        pcpi = data.primary_categories_per_index()
         units = features.shape[1]
-        size_RF = (settings.IMG_SIZE / features.shape[2], settings.IMG_SIZE / features.shape[3])
-        fieldmap = ((0, 0), size_RF, size_RF)
         if settings.PROBE_DATASET == 'broden':
-            pf = SegmentationPrefetcher(data, categories=data.category_names(),
+            pf = SegmentationPrefetcher(data, categories=categories,
                                         once=True, batch_size=settings.TALLY_BATCH_SIZE,
                                         ahead=settings.TALLY_AHEAD, start=start, end=end)
         else:
-            pf = CUBSegmentationPrefetcher(data, categories=data.category_names(),
+            pf = CUBSegmentationPrefetcher(data, categories=categories,
                                            once=True, batch_size=settings.TALLY_BATCH_SIZE,
                                            ahead=settings.TALLY_AHEAD, start=start,
                                            end=end)
         # Cache all masks so they can be looked up
         mc = MaskCatalog(pf)
         # Compute label tallies
-        tally_labels = np.zeros(len(mc.labels), dtype=np.int64)
-        for i, lab in enumerate(mc.labels):
+        tally_labels = {}
+        for lab in mc.labels:
             tlab = 0
             masks = mc.masks[lab]
             for m in masks:
@@ -169,11 +170,10 @@ class FeatureOperator:
                     tlab += mc.mask_shape[0] * mc.mask_shape[1]
                 else:
                     tlab += m.sum()
-            tally_labels[i] = tlab
+            tally_labels[lab] = tlab
 
-        tally_units = np.zeros(units, dtype=np.int64)
+        tally_units_cat = np.zeros((units, len(data.category_names())), dtype=np.int64)
         pcats = data.primary_categories_per_index()
-        categories = data.category_names()
         records = []
         for u in trange(units, desc='Tallying primitives'):
             ufeat = features[:, u]
@@ -181,22 +181,31 @@ class FeatureOperator:
             uthresh = threshold[u]
             # Filter out features that don't exceed threshold,
             # upsample the ones that are left
-            ufeat = np.array([upsample_features(uf, mc.mask_shape)
-                              for uf in ufeat if uf.max() > uthresh])
-            uhits = ufeat > uthresh
-            tally_units[u] = uhits.sum()
+            uidx = [i for i, uf in enumerate(ufeat) if uf.max() > uthresh]
+            ufeat = np.array([upsample_features(ufeat[i], mc.mask_shape) for i in uidx])
+            ucats = np.array([mc.img2cat[i] for i in uidx])
 
-            ious = np.zeros(len(mc.labels), dtype=np.float32)
-            for i, lab in enumerate(mc.labels):
+            # Get indices where threshold is exceeded
+            uhitidx = [np.argwhere(uf > uthresh) for uf in ufeat]
+
+            # Get lengths of those indicees
+            uhits = np.array([len(hidx) for hidx in uhitidx])
+            ucathits = (ucats * uhits[:, np.newaxis]).sum(0)
+            tally_units_cat[u] = ucathits
+
+            best_lab = None
+            best_iou = 0.0
+            for lab in mc.labels:
+                # We need the cat of this label so that we only give
+                cat_i = pcpi[lab]
                 masks = mc.masks[lab]
                 lab_iou = FeatureOperator.compute_iou(
-                    uhits, masks, tally_units[u], tally_labels[i])
-                ious[i] = lab_iou
+                    uidx, uhitidx, masks, tally_units_cat[u, cat_i], tally_labels[lab])
+                if lab_iou > best_iou:
+                    best_iou = lab_iou
+                    best_lab = lab
 
             # This may just be a subset of masks
-            best_lab_local = ious.argmax()
-            best_iou = ious[best_lab_local]
-            best_lab = mc.labels[best_lab_local]
             best_cat = pcats[best_lab]
             best_name = data.name(None, best_lab)
             r = {
@@ -214,21 +223,21 @@ class FeatureOperator:
 
 
     @staticmethod
-    def compute_iou(uhits, masks, tally_unit, tally_label):
+    def compute_iou(uidx, uhitidx, masks, tally_unit, tally_label):
+        # Compute intersections
         tally_both = 0
-        for i, hits in enumerate(uhits):
+        for i, hitidx in zip(uidx, uhitidx):
             # Mask for this image
             mask = masks[i]
             if mask is None:
                 continue
             elif len(mask.shape) == 0:
-                # This is a scalar - anywhere this neuron is active is a hit
+                # Scalar - anywhere this neuron is active is a hit
                 assert mask == 1
-                tally_both += hits.sum()
+                tally_both += len(hitidx)
             else:
                 # Intersection
-                indices = np.argwhere(hits)
-                both = mask[indices[:, 0], indices[:, 1]]
+                both = mask[hitidx[:, 0], hitidx[:, 1]]
                 tally_both += both.sum()
 
         iou = (tally_both) / (tally_label + tally_unit - tally_both + 1e-10)

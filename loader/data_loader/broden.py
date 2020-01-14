@@ -443,18 +443,21 @@ class MaskCatalog:
             #  with open(self.cache_file) as f:
                 #  self.masks = pickle.load(f)
         self.masks = {}
+        data_size = self.prefetcher.segmentation.size()
+        categories = self.prefetcher.segmentation.category_names()
+        self.img2cat = np.zeros((data_size, len(categories)), dtype=np.uint8)
         if settings.PROBE_DATASET == 'broden':
             self.mask_shape = (112, 112)  # Hardcode this - hopefully it doesn't chnge
         else:
             self.mask_shape = (224, 224)
 
-        n_batches = int(np.ceil(self.prefetcher.segmentation.size() / settings.TALLY_BATCH_SIZE))
+        n_batches = int(np.ceil(data_size / settings.TALLY_BATCH_SIZE))
         for batch in tqdm(self.prefetcher.batches(), desc='Loading masks',
                           total=n_batches):
             for concept_map in batch:
                 img_index = concept_map['i']
                 seg_shape = (concept_map['sh'], concept_map['sw'])
-                for cat in self.prefetcher.segmentation.category_names():
+                for cat_i, cat in enumerate(categories):
                     label_group = concept_map[cat]
                     shape = np.shape(label_group)
                     if len(shape) % 2 == 0:
@@ -484,6 +487,8 @@ class MaskCatalog:
                                 # So override everywhere
                                 print("Conflict")
                                 self.masks[feat][img_index] = np.uint8(1)
+                            # This image displays this category
+                            self.img2cat[img_index][cat_i] = 1
                     else:
                         # Pixels
                         feats = np.unique(label_group.ravel())
@@ -520,6 +525,7 @@ class MaskCatalog:
                                 # sure why (img_index 21/feature 86) but this is ignored in
                                 # the original tally too so \shrug
                                 self.masks[feat][img_index] = np.bitwise_or(self.masks[feat][img_index], bin_mask)
+                            self.img2cat[img_index][cat_i] = 1
 
         self.labels = sorted(list(self.masks.keys()))
 
