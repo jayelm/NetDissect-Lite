@@ -223,7 +223,6 @@ class FeatureOperator:
                 all_uhitidx[u] = [np.array(uhi, dtype=np.uint32) for uhi in uhitidx]
                 tally_units_cat[u] = ucathits
 
-        # Does this part need multiprocessing?
         records = []
         for u in trange(units, desc='IoU - primitives'):
             best_lab = None
@@ -245,6 +244,24 @@ class FeatureOperator:
                 'score': best_iou
             }
             records.append(r)
+
+        # Memory usage too high
+        #  mp_args = (
+            #  (u, mc.labels, pcpi, mc.masks, all_uidx[u], all_uhitidx[u], tally_units_cat[u], tally_labels)
+            #  for u in range(units)
+        #  )
+        #  with mp.Pool(settings.PARALLEL) as p:
+            #  for (u, best_lab, best_iou) in p.imap_unordered(FeatureOperator.compute_best_iou,
+                                                            #  tqdm(mp_args, desc='Computing best iou', total=units)):
+                #  best_cat = pcats[best_lab]
+                #  best_name = data.name(None, best_lab)
+                #  r = {
+                    #  'unit': (u + 1),
+                    #  'category': categories[best_cat],
+                    #  'label': best_name,
+                    #  'score': best_iou
+                #  }
+                #  records.append(r)
 
         tally_df = pd.DataFrame(records)
         tally_df.to_csv(os.path.join(settings.OUTPUT_FOLDER, 'tally.csv'),
