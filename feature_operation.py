@@ -4,10 +4,11 @@ import numpy as np
 import torch
 import settings
 import util.upsample as upsample
+import pandas as pd
 import util.vecquantile as vecquantile
 import multiprocessing.pool as pool
 from loader.data_loader.broden import load_csv
-from loader.data_loader.broden import SegmentationData, SegmentationPrefetcher
+from loader.data_loader.broden import SegmentationData, SegmentationPrefetcher, MaskCatalog
 from loader.data_loader.cub import load_cub, CUBSegmentationPrefetcher
 from tqdm import tqdm, trange
 import csv
@@ -15,6 +16,10 @@ import csv
 features_blobs = []
 def hook_feature(module, inp, output):
     features_blobs.append(output.data.cpu().numpy())
+
+
+def upsample_features(features, shape):
+    return np.array(Image.fromarray(features).resize(shape, resample=Image.BILINEAR))
 
 
 class FeatureOperator:
@@ -130,25 +135,122 @@ class FeatureOperator:
 
     @staticmethod
     def tally_job(args):
+        if settings.MASK_SEARCH:
+            return FeatureOperator.tally_job_search(args)
+        else:
+            FeatureOperator.tally_job_std(args)
+
+    @staticmethod
+    def tally_job_search(args):
         features, data, threshold, tally_labels, tally_units, tally_units_cat, tally_both, start, end = args
         units = features.shape[1]
         size_RF = (settings.IMG_SIZE / features.shape[2], settings.IMG_SIZE / features.shape[3])
         fieldmap = ((0, 0), size_RF, size_RF)
         if settings.PROBE_DATASET == 'broden':
-            pd = SegmentationPrefetcher(data, categories=data.category_names(),
+            pf = SegmentationPrefetcher(data, categories=data.category_names(),
                                         once=True, batch_size=settings.TALLY_BATCH_SIZE,
                                         ahead=settings.TALLY_AHEAD, start=start, end=end)
         else:
-            pd = CUBSegmentationPrefetcher(data, categories=data.category_names(),
+            pf = CUBSegmentationPrefetcher(data, categories=data.category_names(),
+                                           once=True, batch_size=settings.TALLY_BATCH_SIZE,
+                                           ahead=settings.TALLY_AHEAD, start=start,
+                                           end=end)
+        # Cache all masks so they can be looked up
+        mc = MaskCatalog(pf)
+        # Compute label tallies
+        tally_labels = np.zeros(len(mc.labels), dtype=np.int64)
+        for i, lab in enumerate(mc.labels):
+            tlab = 0
+            masks = mc.masks[lab]
+            for m in masks:
+                if m is None:
+                    continue
+                elif len(m.shape) == 0:
+                    tlab += mc.mask_shape[0] * mc.mask_shape[1]
+                else:
+                    tlab += m.sum()
+            tally_labels[i] = tlab
+
+        tally_units = np.zeros(units, dtype=np.int64)
+        pcats = data.primary_categories_per_index()
+        categories = data.category_names()
+        records = []
+        for u in trange(units, desc='Tallying primitives'):
+            ufeat = features[:, u]
+            ufeat = [upsample_features(uf, mc.mask_shape)
+                     for uf in ufeat]
+            uthresh = threshold[u]
+            uhits = np.array([uf > uthresh for uf in ufeat])
+            tally_units[u] = uhits.sum()
+
+            ious = np.zeros(len(mc.labels), dtype=np.float32)
+            for i, lab in enumerate(mc.labels):
+                masks = mc.masks[lab]
+                lab_iou = FeatureOperator.compute_iou(
+                    uhits, masks, tally_units[u], tally_labels[i],
+                    shape=mc.mask_shape)
+                ious[i] = lab_iou
+
+            # This may just be a subset of masks
+            best_lab_local = ious.argmax()
+            best_iou = ious[best_lab_local]
+            best_lab = mc.labels[best_lab_local]
+            best_cat = pcats[best_lab]
+            best_name = data.name(None, best_lab)
+            r = {
+                'unit': (u + 1),
+                'category': categories[best_cat],
+                'label': best_name,
+                'score': best_iou
+            }
+            records.append(r)
+
+        tally_df = pd.DataFrame(records)
+        tally_df.to_csv(os.path.join(settings.OUTPUT_FOLDER, 'tally.csv'),
+                        index=False)
+        return records
+
+
+    @staticmethod
+    def compute_iou(uhits, masks, tally_unit, tally_label, shape=(112, 112)):
+        tally_both = 0
+        for i, hits in enumerate(uhits):
+            # Mask for this image
+            mask = masks[i]
+            if mask is None:
+                continue
+            elif len(mask.shape) == 0:
+                # This is a scalar - anywhere this neuron is active is a hit
+                assert mask == 1
+                tally_both += hits.sum()
+            else:
+                # Intersection
+                both = mask[hits[:, 0], hits[:, 1]]
+                tally_both += both.sum()
+
+        iou = (tally_both) / (tally_label + tally_unit - tally_both + 1e-10)
+        return iou
+
+    @staticmethod
+    def tally_job_std(args):
+        features, data, threshold, tally_labels, tally_units, tally_units_cat, tally_both, start, end = args
+        units = features.shape[1]
+        size_RF = (settings.IMG_SIZE / features.shape[2], settings.IMG_SIZE / features.shape[3])
+        fieldmap = ((0, 0), size_RF, size_RF)
+        if settings.PROBE_DATASET == 'broden':
+            pf = SegmentationPrefetcher(data, categories=data.category_names(),
+                                        once=True, batch_size=settings.TALLY_BATCH_SIZE,
+                                        ahead=settings.TALLY_AHEAD, start=start, end=end)
+        else:
+            pf = CUBSegmentationPrefetcher(data, categories=data.category_names(),
                                            once=True, batch_size=settings.TALLY_BATCH_SIZE,
                                            ahead=settings.TALLY_AHEAD, start=start,
                                            end=end)
         count = start
-        for batch in tqdm(pd.batches(), desc='Label probing',
+        for batch in tqdm(pf.batches(), desc='Label probing',
                           total=int(np.ceil(end / settings.TALLY_BATCH_SIZE))):
 
-            # Concept map - list of concepts and their associated
-            # images
+            # Concept map - list of concepts and their associated images
             for concept_map in batch:
                 count += 1
                 # Get the features of this image
@@ -174,7 +276,7 @@ class FeatureOperator:
                     pixels = np.concatenate(pixels)
                     # Pixels - each number represents the label of the
                     # segmentation mask
-                    # XXX: Crucially, segmentation masks do NOT overlap
+                    # Crucially, segmentation masks do NOT overlap
                     tally_label = np.bincount(pixels.ravel())
                     if len(tally_label) > 0:
                         tally_label[0] = 0
@@ -196,7 +298,7 @@ class FeatureOperator:
                         # Resize activations w/ interpolation (note - changed
                         # from imresize w/ default bilinear interp; here using
                         # PIL and specify bilinear interp)
-                        mask = np.array(Image.fromarray(feature_map).resize((concept_map['sh'], concept_map['sw']), resample=Image.BILINEAR))
+                        mask = upsample_features(feature_map, (concept_map['sh'], concept_map['sw']))
                         #reduction = int(round(settings.IMG_SIZE / float(concept_map['sh'])))
                         #mask = upsample.upsampleL(fieldmap, feature_map, shape=(concept_map['sh'], concept_map['sw']), reduction=reduction)
                         indexes = np.argwhere(mask > threshold[unit_id])
@@ -234,6 +336,19 @@ class FeatureOperator:
         if savepath and os.path.exists(csvpath):
             return load_csv(csvpath)
 
+        # For each neuron...
+        # (1) get threshold activations
+        # (2) start the formula search, computiong IoU for f
+        # Formula search looks like this:
+        # First compute IoU for all primitives
+        # (disjunctions) - may as well compute IoU for all disjunctions
+        # eventually, beam search: here are the formulas with highest IoU. What to do next? Combine them?
+        # (is it combine or just beam search?)
+        # Speed considerations:
+        # (1) CACHE masks for more complicated formulas?
+        # (2) CACHE metadata for more complicated formulas?
+        # (3) Speed
+        # Don't do premature optimization. Just load things on the fly and see how long it takes.
         units = features.shape[1]
         labels = len(self.data.label)
         categories = self.data.category_names()
@@ -256,7 +371,10 @@ class FeatureOperator:
             threadpool = pool.ThreadPool(processes=settings.PARALLEL)
             threadpool.map(FeatureOperator.tally_job, params)
         else:
-            FeatureOperator.tally_job((features, self.data, threshold, tally_labels, tally_units, tally_units_cat, tally_both, 0, self.data.size()))
+            maybe_rets = FeatureOperator.tally_job((features, self.data, threshold, tally_labels, tally_units, tally_units_cat, tally_both, 0, self.data.size()))
+
+        if settings.MASK_SEARCH:
+            return maybe_rets
 
         primary_categories = self.data.primary_categories_per_index()
         # Tally units cat - how often is the neuron activated FOR EACH
@@ -289,7 +407,8 @@ class FeatureOperator:
             tally_uc_uid = tally_units_cat[unit_id]
             tally_uc_uid = np.add.outer(tally_uc_uid[labs_uid], tally_uc_uid[labs_uid])
 
-            tally_labs_uid = np.add.outer(tally_labels[labs_uid], tally_labels[labs_uid])
+            tally_labs_uid = np.add.outer(tally_labels[labs_uid],
+                                          tally_labels[labs_uid])
             iou_uid = tally_bt_uid / (tally_uc_uid + tally_labs_uid - tally_bt_uid + 1e-10)
             # We don't care about "X v X" disjuncts
             np.fill_diagonal(iou_uid, 0.0)
