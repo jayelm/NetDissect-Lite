@@ -155,7 +155,12 @@ class FeatureOperator:
 
     @staticmethod
     def get_uhits(args):
-        u, ufeat, uthresh, img2cat, mask_shape = args
+        u, = args
+        #  u, ufeat, uthresh, img2cat, mask_shape = args
+        ufeat = g['features'][:, u]
+        uthresh = g['threshold'][u]
+        img2cat = g['img2cat']
+        mask_shape = g['mask_shape']
         uidx = [i for i, uf in enumerate(ufeat) if uf.max() > uthresh]
         ufeat = np.array([upsample_features(ufeat[i], mask_shape) for i in uidx])
         ucats = np.array([np.bitwise_or.outer(img2cat[i], img2cat[i]) for i in uidx])
@@ -221,6 +226,8 @@ class FeatureOperator:
         g['mc'] = MaskCatalog(pf)
         g['labels'] = mc.labels
         g['masks'] = mc.masks
+        g['img2cat'] = mc.img2cat
+        g['mask_shape'] = mc.mask_shape
 
         # Cache label tallies
         g['tally_labels'] = {}
@@ -234,23 +241,26 @@ class FeatureOperator:
         records = []
 
         # Get unit information (this is expensive (upsampling) and where most of the work is done)
+        g['features'] = features
+        g['threshold'] = threshold
         mp_args = (
-            (u, features[:, u], threshold[u], mc.img2cat, mc.mask_shape)
+            (u, )
             for u in range(units)
         )
         all_uidx = [None for _ in range(units)]
         all_uhitidx = [None for _ in range(units)]
         g['all_uidx'] = all_uidx
         g['all_uhitidx'] = all_uhitidx
-        with mp.Pool(settings.PARALLEL) as p:
-            #  for (u, uidx, uhitidx, ucathits) in map(FeatureOperator.get_uhits,
-                                                                 #  tqdm(mp_args, desc='Tallying units', total=units)):
-            for (u, uidx, uhitidx, ucathits) in p.imap_unordered(FeatureOperator.get_uhits,
-                                                                 tqdm(mp_args, desc='Tallying units', total=units)):
+        with mp.Pool(settings.PARALLEL) as p, tqdm(total=units, desc='Tallying units') as pbar:
+            for (u, uidx, uhitidx, ucathits) in p.imap_unordered(FeatureOperator.get_uhits, mp_args):
                 # Shouldn't need longs here (less than 65553)
                 all_uidx[u] = np.array(uidx, dtype=np.uint32)
                 all_uhitidx[u] = [np.array(uhi, dtype=np.uint32) for uhi in uhitidx]
                 tally_units_cat[u] = ucathits
+                pbar.update()
+
+        # We don't need features anymore
+        del g['features']
 
         records = []
         mp_args = ((u, ) for u in range(units))
@@ -376,8 +386,16 @@ class FeatureOperator:
                 best_iou = lab_iou
                 best_lab = lab
 
-        nonzero_iou = {lab: iou for lab, iou in ious.items() if iou > 0}
-        nonzero_labs = list(nonzero_iou.keys())
+        # T
+        #  import cProfile, pstats, io
+        #  from pstats import SortKey
+        #  pr = cProfile.Profile()
+        #  pr.enable()
+        # T
+
+        nonzero_iou = Counter({lab: iou for lab, iou in ious.items() if iou > 0})
+        # Pick 10 best
+        nonzero_labs = [lab for lab, iou in nonzero_iou.most_common(10)]
         for lab_left, lab_right in itertools.combinations(nonzero_labs, 2):
             disj_lab = LFOr(lab_left, lab_right)
             masks_disj = get_mask_global(g['masks'], disj_lab)
@@ -393,6 +411,16 @@ class FeatureOperator:
             if disj_iou > best_iou:
                 best_iou = disj_iou
                 best_lab = disj_lab
+
+        # T
+        #  pr.disable()
+        #  s = io.StringIO()
+        #  sortby = SortKey.CUMULATIVE
+        #  ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        #  ps.print_stats()
+        #  print(s.getvalue())
+        #  breakpoint()
+        # T
 
         return u, best_lab, best_iou
 
