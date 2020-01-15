@@ -9,7 +9,8 @@ import util.vecquantile as vecquantile
 import multiprocessing.pool as pool
 import multiprocessing as mp
 from loader.data_loader.broden import load_csv
-from loader.data_loader.broden import SegmentationData, SegmentationPrefetcher, MaskCatalog
+from loader.data_loader.broden import SegmentationData, SegmentationPrefetcher
+from loader.data_loader.catalog import MaskCatalog
 from loader.data_loader.cub import load_cub, CUBSegmentationPrefetcher
 from tqdm import tqdm, trange
 import csv
