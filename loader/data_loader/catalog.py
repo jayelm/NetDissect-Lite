@@ -12,6 +12,30 @@ LFAnd = namedtuple('LFAnd', ['left', 'right'])
 LFOr = namedtuple('LFOr', ['left', 'right'])
 
 
+def get_mask_global(masks, f):
+    """
+    Serializable/global version of get_mask for multiprocessing
+    """
+    if isinstance(f, LFAnd):
+        masks_l = get_mask_global(masks, f.left)
+        masks_r = get_mask_global(masks, f.right)
+        masks_both = []
+        for ml, mr in zip(masks_l, masks_r):
+            mb = mask_and(ml, mr)
+            masks_both.append(mb)
+        return masks_both
+    elif isinstance(f, LFOr):
+        masks_l = get_mask_global(masks, f.left)
+        masks_r = get_mask_global(masks, f.right)
+        masks_both = []
+        for ml, mr in zip(masks_l, masks_r):
+            mb = mask_or(ml, mr)
+            masks_both.append(mb)
+        return masks_both
+    else:
+        return masks[f]
+
+
 def mask_and(ml, mr):
     if ml is None:
         return None
@@ -143,24 +167,8 @@ class MaskCatalog:
         self.labels = sorted(list(self.masks.keys()))
 
     def get_mask(self, f):
-        if isinstance(f, LFAnd):
-            masks_l = self.get_mask(f.left)
-            masks_r = self.get_mask(f.right)
-            masks_both = []
-            for ml, mr in zip(masks_l, masks_r):
-                mb = mask_and(ml, mr)
-                masks_both.append(mb)
-            return masks_both
-        elif isinstance(f, LFOr):
-            masks_l = self.get_mask(f.left)
-            masks_r = self.get_mask(f.right)
-            masks_both = []
-            for ml, mr in zip(masks_l, masks_r):
-                mb = mask_or(ml, mr)
-                masks_both.append(mb)
-            return masks_both
-        else:
-            return self.masks[f]
+        return get_mask_global(self.masks, f)
+
 
     def initialize_mask(self, i, mask_type, seg_shape=(112, 112)):
         if i in self.masks:
