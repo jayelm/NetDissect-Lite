@@ -5,6 +5,38 @@ Functions for returning masks
 import numpy as np
 import settings
 from tqdm import tqdm
+from collections import namedtuple
+
+
+LFAnd = namedtuple('LFAnd', ['left', 'right'])
+LFOr = namedtuple('LFOr', ['left', 'right'])
+
+
+def mask_and(ml, mr):
+    if ml is None:
+        return None
+    if mr is None:
+        return None
+    if len(ml.shape) == 0:
+        # ML is 1 - and is mr
+        return mr
+    if len(mr.shape) == 0:
+        return ml
+    return np.bitwise_and(ml, mr)
+
+
+def mask_or(ml, mr):
+    if ml is None:
+        return mr
+    if mr is None:
+        return ml
+    if len(ml.shape) == 0:
+        # ML is 1 - or is 1
+        return ml
+    if len(mr.shape) == 0:
+        # MR is 1 - or is 1
+        return mr
+    return np.bitwise_or(ml, mr)
 
 
 class MaskCatalog:
@@ -110,6 +142,26 @@ class MaskCatalog:
 
         self.labels = sorted(list(self.masks.keys()))
 
+    def get_mask(self, f):
+        if isinstance(f, LFAnd):
+            masks_l = self.get_mask(f.left)
+            masks_r = self.get_mask(f.right)
+            masks_both = []
+            for ml, mr in zip(masks_l, masks_r):
+                mb = mask_and(ml, mr)
+                masks_both.append(mb)
+            return masks_both
+        elif isinstance(f, LFOr):
+            masks_l = self.get_mask(f.left)
+            masks_r = self.get_mask(f.right)
+            masks_both = []
+            for ml, mr in zip(masks_l, masks_r):
+                mb = mask_or(ml, mr)
+                masks_both.append(mb)
+            return masks_both
+        else:
+            return self.masks[f]
+
     def initialize_mask(self, i, mask_type, seg_shape=(112, 112)):
         if i in self.masks:
             raise ValueError(f"Already initialized {i}")
@@ -119,10 +171,6 @@ class MaskCatalog:
         #  if mask_type == 'scalar':
             #  self.masks[i] = np.zeros(self.prefetcher.segmentation.size(), dtype=np.uint8)
         if mask_type == 'pixel':
-            # There are no 3d scipy sparse matrices (except sparse package), so
-            # a normal python list with None where masks don't apply will do.
-            # Alternatively do scipy sparse matrix (the Nones will be free)
             self.masks[i] = [None for _ in range(self.prefetcher.segmentation.size())]
-            #  self.masks[i] = coo_matrix((self.prefetcher.segmentation.size(), *seg_shape), dtype=np.uint8)
         else:
             raise ValueError(f"Unknown mask type {mask_type}")

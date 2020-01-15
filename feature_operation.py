@@ -10,11 +10,12 @@ import multiprocessing.pool as pool
 import multiprocessing as mp
 from loader.data_loader.broden import load_csv
 from loader.data_loader.broden import SegmentationData, SegmentationPrefetcher
-from loader.data_loader.catalog import MaskCatalog
+from loader.data_loader.catalog import MaskCatalog, LFAnd, LFOr
 from loader.data_loader.cub import load_cub, CUBSegmentationPrefetcher
 from tqdm import tqdm, trange
 import csv
 from collections import Counter
+import itertools
 
 features_blobs = []
 def hook_feature(module, inp, output):
@@ -148,19 +149,22 @@ class FeatureOperator:
         u, ufeat, uthresh, img2cat, mask_shape = args
         uidx = [i for i, uf in enumerate(ufeat) if uf.max() > uthresh]
         ufeat = np.array([upsample_features(ufeat[i], mask_shape) for i in uidx])
-        ucats = np.array([img2cat[i] for i in uidx])
+        ucats = np.array([np.bitwise_or.outer(img2cat[i], img2cat[i]) for i in uidx])
 
         # Get indices where threshold is exceeded
         uhitidx = [np.argwhere(uf > uthresh) for uf in ufeat]
 
         # Get lengths of those indicees
         uhits = np.array([len(hidx) for hidx in uhitidx])
-        ucathits = (ucats * uhits[:, np.newaxis]).sum(0)
+        ucathits = (ucats * uhits[:, np.newaxis, np.newaxis]).sum(0)
+
+        # Get disjunctive hits (and TODO: conjunctive hits)
+        # For disjuncts of categories, only count images where at least one category hits
 
         return u, uidx, uhitidx, ucathits
 
     @staticmethod
-    def compute_tally_labels(args):
+    def compute_tally_labels_mp(args):
         tlab = 0
         lab, masks, mask_shape = args
         for m in masks:
@@ -171,6 +175,18 @@ class FeatureOperator:
             else:
                 tlab += m.sum()
         return lab, tlab
+
+    @staticmethod
+    def compute_tally_label(masks, mask_shape):
+        tlab = 0
+        for m in masks:
+            if m is None:
+                continue
+            elif len(m.shape) == 0:
+                tlab += mask_shape[0] * mask_shape[1]
+            else:
+                tlab += m.sum()
+        return tlab
 
     @staticmethod
     def tally_job_search(args):
@@ -193,20 +209,14 @@ class FeatureOperator:
         # Cache all masks so they can be looked up
         mc = MaskCatalog(pf)
 
-        # Compute label tallies
+        # Cache label tallies
         tally_labels = {}
         for lab in mc.labels:
-            tlab = 0
-            for m in mc.masks[lab]:
-                if m is None:
-                    continue
-                elif len(m.shape) == 0:
-                    tlab += mc.mask_shape[0] * mc.mask_shape[1]
-                else:
-                    tlab += m.sum()
-            tally_labels[lab] = tlab
+            masks = mc.get_mask(lab)
+            tally_labels[lab] = FeatureOperator.compute_tally_label(masks, mc.mask_shape)
 
-        tally_units_cat = np.zeros((units, len(data.category_names())), dtype=np.int64)
+        # w/ disjunctions
+        tally_units_cat = np.zeros((units, len(categories), len(categories)), dtype=np.int64)
         records = []
 
         # Get unit information (this is expensive (upsampling) and where most of the work is done)
@@ -217,8 +227,10 @@ class FeatureOperator:
         all_uidx = [None for _ in range(units)]
         all_uhitidx = [None for _ in range(units)]
         with mp.Pool(settings.PARALLEL) as p:
-            for (u, uidx, uhitidx, ucathits) in p.imap_unordered(FeatureOperator.get_uhits,
+            for (u, uidx, uhitidx, ucathits) in map(FeatureOperator.get_uhits,
                                                                  tqdm(mp_args, desc='Tallying units', total=units)):
+            #  for (u, uidx, uhitidx, ucathits) in p.imap_unordered(FeatureOperator.get_uhits,
+                                                                 #  tqdm(mp_args, desc='Tallying units', total=units)):
                 # Shouldn't need longs here (less than 65553)
                 all_uidx[u] = np.array(uidx, dtype=np.uint32)
                 all_uhitidx[u] = [np.array(uhi, dtype=np.uint32) for uhi in uhitidx]
@@ -228,19 +240,50 @@ class FeatureOperator:
         for u in trange(units, desc='IoU - primitives'):
             best_lab = None
             best_iou = 0.0
+            ious = {}
             for lab in mc.labels:
                 cat_i = pcpi[lab]
-                masks = mc.masks[lab]
+                masks = mc.get_mask(lab)
                 lab_iou = FeatureOperator.compute_iou(
-                    all_uidx[u], all_uhitidx[u], masks, tally_units_cat[u, cat_i], tally_labels[lab])
-                if lab_iou > best_iou:
+                    all_uidx[u], all_uhitidx[u], masks, tally_units_cat[u, cat_i, cat_i], tally_labels[lab])
+                ious[lab] = lab_iou
+                if not settings.FORCE_DISJUNCTION and lab_iou > best_iou:
                     best_iou = lab_iou
                     best_lab = lab
-            best_cat = pcats[best_lab]
-            best_name = data.name(None, best_lab)
+
+            # ==== DISJUNCTIONS ====
+            nonzero_iou = {lab: iou for lab, iou in ious.items() if iou > 0}
+            nonzero_labs = list(nonzero_iou.keys())
+            for lab_left, lab_right in itertools.combinations(nonzero_labs, 2):
+                disj_lab = LFOr(lab_left, lab_right)
+                masks_disj = mc.get_mask(disj_lab)
+                cat_left = pcpi[lab_left]
+                cat_right = pcpi[lab_right]
+                # Compute tallies now
+                # WHAT do i do with tally_units_cat??
+                # I need TALLY UNITS DISJ cat?
+                disj_tally_label = FeatureOperator.compute_tally_label(masks_disj, mc.mask_shape)
+                disj_iou = FeatureOperator.compute_iou(
+                    all_uidx[u], all_uhitidx[u], masks_disj, tally_units_cat[u, cat_left, cat_right], disj_tally_label
+                )
+                if disj_iou > best_iou:
+                    print("Disjunction is better")
+                    best_iou = disj_iou
+                    best_lab = disj_lab
+
+            # TODO: OOP
+            if isinstance(best_lab, LFAnd):
+                best_cat = f"{categories[pcats[best_lab.left]]} AND {categories[pcats[best_lab.right]]}"
+                best_name = f"{data.name(None, best_lab.left)} AND {data.name(None, best_lab.right)}"
+            elif isinstance(best_lab, LFOr):
+                best_cat = f"{categories[pcats[best_lab.left]]} OR {categories[pcats[best_lab.right]]}"
+                best_name = f"{data.name(None, best_lab.left)} OR {data.name(None, best_lab.right)}"
+            else:
+                best_cat = pcats[best_lab]
+                best_name = data.name(None, best_lab)
             r = {
                 'unit': (u + 1),
-                'category': categories[best_cat],
+                'category': best_cat if isinstance(best_cat, str) else categories[best_cat],
                 'label': best_name,
                 'score': best_iou
             }
