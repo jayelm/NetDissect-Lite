@@ -13,6 +13,7 @@ from loader.data_loader.broden import SegmentationData, SegmentationPrefetcher
 from loader.data_loader.catalog import MaskCatalog, get_mask_global
 from loader.data_loader import formula as F
 from loader.data_loader.cub import load_cub, CUBSegmentationPrefetcher
+from loader.data_loader import gqa
 from tqdm import tqdm, trange
 import csv
 from collections import Counter
@@ -31,7 +32,6 @@ def upsample_features(features, shape):
 
 
 class FeatureOperator:
-
     def __init__(self):
         os.makedirs(os.path.join(settings.OUTPUT_FOLDER, 'image'), exist_ok=True)
         if settings.PROBE_DATASET == 'broden':
@@ -43,7 +43,14 @@ class FeatureOperator:
                                  max_classes=5 if settings.TEST_MODE else None,
                                  train_augment=False)
             self.loader = CUBSegmentationPrefetcher(self.data, once=True, batch_size=settings.BATCH_SIZE)
-            # Unused
+            self.mean = None
+        elif settings.PROBE_DATASET == 'gqa':
+            self.data = gqa.load_gqa(settings.DATA_DIRECTORY,
+                                     max_images=5 if settings.TEST_MODE else None)
+
+            #  TODO: GQA. May want to return batches separate of
+            #  images and a function for getting the right id
+            self.loader = self.data
             self.mean = None
 
 
