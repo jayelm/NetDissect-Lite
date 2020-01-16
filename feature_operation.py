@@ -10,21 +10,16 @@ import multiprocessing.pool as pool
 import multiprocessing as mp
 from loader.data_loader.broden import load_csv
 from loader.data_loader.broden import SegmentationData, SegmentationPrefetcher
-from loader.data_loader.catalog import MaskCatalog, LFAnd, LFOr, get_mask_global
+from loader.data_loader.catalog import MaskCatalog, get_mask_global
+from loader.data_loader import formula as F
 from loader.data_loader.cub import load_cub, CUBSegmentationPrefetcher
 from tqdm import tqdm, trange
 import csv
 from collections import Counter
 import itertools
 
-g = {
-    'mc': None,
-    'all_uidx': None,
-    'all_uhitidx': None,
-    'tally_units_cat': None,
-    'tally_labels': None,
-    'pcpi': None
-}
+# Janky - globals for multiprocessing to prevent shared memory
+g = {}
 
 features_blobs = []
 def hook_feature(module, inp, output):
@@ -163,19 +158,21 @@ class FeatureOperator:
         mask_shape = g['mask_shape']
         uidx = [i for i, uf in enumerate(ufeat) if uf.max() > uthresh]
         ufeat = np.array([upsample_features(ufeat[i], mask_shape) for i in uidx])
-        ucats = np.array([np.bitwise_or.outer(img2cat[i], img2cat[i]) for i in uidx])
+        ucats_disj = np.array([np.bitwise_or.outer(img2cat[i], img2cat[i]) for i in uidx])
+        ucats_conj = np.array([np.bitwise_and.outer(img2cat[i], img2cat[i]) for i in uidx])
 
         # Get indices where threshold is exceeded
         uhitidx = [np.argwhere(uf > uthresh) for uf in ufeat]
 
         # Get lengths of those indicees
         uhits = np.array([len(hidx) for hidx in uhitidx])
-        ucathits = (ucats * uhits[:, np.newaxis, np.newaxis]).sum(0)
+        ucathits_disj = (ucats_disj * uhits[:, np.newaxis, np.newaxis]).sum(0)
+        ucathits_conj = (ucats_conj * uhits[:, np.newaxis, np.newaxis]).sum(0)
 
         # Get disjunctive hits (and TODO: conjunctive hits)
         # For disjuncts of categories, only count images where at least one category hits
 
-        return u, uidx, uhitidx, ucathits
+        return u, uidx, uhitidx, ucathits_disj, ucathits_conj
 
     @staticmethod
     def compute_tally_labels_mp(args):
@@ -232,12 +229,14 @@ class FeatureOperator:
         # Cache label tallies
         g['tally_labels'] = {}
         for lab in mc.labels:
-            masks = mc.get_mask(lab)
+            masks = mc.get_mask(F.Leaf(lab))
             g['tally_labels'][lab] = FeatureOperator.compute_tally_label(masks, mc.mask_shape)
 
         # w/ disjunctions
-        tally_units_cat = np.zeros((units, len(categories), len(categories)), dtype=np.int64)
-        g['tally_units_cat'] = tally_units_cat
+        tally_units_cat_disj = np.zeros((units, len(categories), len(categories)), dtype=np.int64)
+        tally_units_cat_conj = np.zeros((units, len(categories), len(categories)), dtype=np.int64)
+        g['tally_units_cat_disj'] = tally_units_cat_disj
+        g['tally_units_cat_conj'] = tally_units_cat_conj
         records = []
 
         # Get unit information (this is expensive (upsampling) and where most of the work is done)
@@ -252,11 +251,12 @@ class FeatureOperator:
         g['all_uidx'] = all_uidx
         g['all_uhitidx'] = all_uhitidx
         with mp.Pool(settings.PARALLEL) as p, tqdm(total=units, desc='Tallying units') as pbar:
-            for (u, uidx, uhitidx, ucathits) in p.imap_unordered(FeatureOperator.get_uhits, mp_args):
+            for (u, uidx, uhitidx, ucathits_disj, ucathits_conj) in p.imap_unordered(FeatureOperator.get_uhits, mp_args):
                 # Shouldn't need longs here (less than 65553)
                 all_uidx[u] = np.array(uidx, dtype=np.uint32)
                 all_uhitidx[u] = [np.array(uhi, dtype=np.uint32) for uhi in uhitidx]
-                tally_units_cat[u] = ucathits
+                tally_units_cat_disj[u] = ucathits_disj
+                tally_units_cat_conj[u] = ucathits_conj
                 pbar.update()
 
         # We don't need features anymore
@@ -267,18 +267,11 @@ class FeatureOperator:
         with mp.Pool(settings.PARALLEL) as p, tqdm(total=units, desc='IoU - primitives') as pbar:
             for (u, best_lab, best_iou) in p.imap_unordered(FeatureOperator.compute_best_iou, mp_args):
                 # TODO: OOP
-                if isinstance(best_lab, LFAnd):
-                    best_cat = f"{categories[pcats[best_lab.left]]} AND {categories[pcats[best_lab.right]]}"
-                    best_name = f"{data.name(None, best_lab.left)} AND {data.name(None, best_lab.right)}"
-                elif isinstance(best_lab, LFOr):
-                    best_cat = f"{categories[pcats[best_lab.left]]} OR {categories[pcats[best_lab.right]]}"
-                    best_name = f"{data.name(None, best_lab.left)} OR {data.name(None, best_lab.right)}"
-                else:
-                    best_cat = pcats[best_lab]
-                    best_name = data.name(None, best_lab)
+                best_name = best_lab.to_str(lambda name: data.name(None, name))
+                best_cat = best_lab.to_str(lambda name: categories[pcats[name]])
                 r = {
                     'unit': (u + 1),
-                    'category': best_cat if isinstance(best_cat, str) else categories[best_cat],
+                    'category': best_cat,
                     'label': best_name,
                     'score': best_iou
                 }
@@ -374,17 +367,15 @@ class FeatureOperator:
         #  print(len(g['all_uhitidx'][0]))
         #  print(len(g['all_uidx']))
         for lab in g['labels']:
+            lab_f = F.Leaf(lab)
             cat_i = g['pcpi'][lab]
             masks = g['masks'][lab]
             lab_iou = FeatureOperator.compute_iou(
-                g['all_uidx'][u], g['all_uhitidx'][u], masks, g['tally_units_cat'][u, cat_i, cat_i], g['tally_labels'][lab])
-            if lab_iou > best_iou:
-                best_iou = lab_iou
-                best_lab = lab
+                g['all_uidx'][u], g['all_uhitidx'][u], masks, g['tally_units_cat_disj'][u, cat_i, cat_i], g['tally_labels'][lab])
             ious[lab] = lab_iou
             if not settings.FORCE_DISJUNCTION and lab_iou > best_iou:
                 best_iou = lab_iou
-                best_lab = lab
+                best_lab = lab_f
 
         # T
         #  import cProfile, pstats, io
@@ -397,20 +388,30 @@ class FeatureOperator:
         # Pick 10 best
         nonzero_labs = [lab for lab, iou in nonzero_iou.most_common(10)]
         for lab_left, lab_right in itertools.combinations(nonzero_labs, 2):
-            disj_lab = LFOr(lab_left, lab_right)
-            masks_disj = get_mask_global(g['masks'], disj_lab)
-            cat_left = g['pcpi'][lab_left]
-            cat_right = g['pcpi'][lab_right]
-            # Compute tallies now
-            # WHAT do i do with tally_units_cat??
-            # I need TALLY UNITS DISJ cat?
-            disj_tally_label = FeatureOperator.compute_tally_label(masks_disj, g['mc'].mask_shape)
-            disj_iou = FeatureOperator.compute_iou(
-                g['all_uidx'][u], g['all_uhitidx'][u], masks_disj, g['tally_units_cat'][u, cat_left, cat_right], disj_tally_label
-            )
-            if disj_iou > best_iou:
-                best_iou = disj_iou
-                best_lab = disj_lab
+            for comp in (F.Or, F.And):
+                comp_lab = comp(F.Leaf(lab_left), F.Leaf(lab_right))
+                masks_comp = get_mask_global(g['masks'], comp_lab)
+                cat_left = g['pcpi'][lab_left]
+                cat_right = g['pcpi'][lab_right]
+                # Compute tallies now
+                # WHAT do i do with tally_units_cat??
+                # I need TALLY UNITS comp cat?
+                comp_tally_label = FeatureOperator.compute_tally_label(masks_comp, g['mask_shape'])
+                if comp == F.Or:
+                    tuc = g['tally_units_cat_disj'][u, cat_left, cat_right]
+                elif comp == F.And:
+                    tuc = g['tally_units_cat_conj'][u, cat_left, cat_right]
+                else:
+                    raise RuntimeError
+                comp_iou = FeatureOperator.compute_iou(
+                    g['all_uidx'][u], g['all_uhitidx'][u], masks_comp, tuc, comp_tally_label
+                )
+                # Weight the iou by formula length
+                comp_iou = (settings.FORMULA_COMPLEXITY_PENALTY ** (len(comp_lab) - 1)) * comp_iou
+
+                if comp_iou > best_iou:
+                    best_iou = comp_iou
+                    best_lab = comp_lab
 
         # T
         #  pr.disable()

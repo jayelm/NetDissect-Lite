@@ -5,18 +5,14 @@ Functions for returning masks
 import numpy as np
 import settings
 from tqdm import tqdm
-from collections import namedtuple
-
-
-LFAnd = namedtuple('LFAnd', ['left', 'right'])
-LFOr = namedtuple('LFOr', ['left', 'right'])
+from . import formula as F
 
 
 def get_mask_global(masks, f):
     """
     Serializable/global version of get_mask for multiprocessing
     """
-    if isinstance(f, LFAnd):
+    if isinstance(f, F.And):
         masks_l = get_mask_global(masks, f.left)
         masks_r = get_mask_global(masks, f.right)
         masks_both = []
@@ -24,7 +20,7 @@ def get_mask_global(masks, f):
             mb = mask_and(ml, mr)
             masks_both.append(mb)
         return masks_both
-    elif isinstance(f, LFOr):
+    elif isinstance(f, F.Or):
         masks_l = get_mask_global(masks, f.left)
         masks_r = get_mask_global(masks, f.right)
         masks_both = []
@@ -32,8 +28,10 @@ def get_mask_global(masks, f):
             mb = mask_or(ml, mr)
             masks_both.append(mb)
         return masks_both
+    elif isinstance(f, F.Leaf):
+        return masks[f.val]
     else:
-        return masks[f]
+        raise ValueError("Most be passed formula")
 
 
 def mask_and(ml, mr):
