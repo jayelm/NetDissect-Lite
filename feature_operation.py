@@ -393,6 +393,8 @@ class FeatureOperator:
                 masks_comp = get_mask_global(g['masks'], comp_lab)
                 cat_left = g['pcpi'][lab_left]
                 cat_right = g['pcpi'][lab_right]
+                if comp == F.And and cat_left == cat_right:
+                    continue  # Skip as there are no conjunctions within same-categories
                 # Compute tallies now
                 # WHAT do i do with tally_units_cat??
                 # I need TALLY UNITS comp cat?
