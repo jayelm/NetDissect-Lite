@@ -7,74 +7,37 @@ import settings
 from tqdm import tqdm
 from . import formula as F
 
+import sparse
+
 
 def get_mask_global(masks, f):
     """
     Serializable/global version of get_mask for multiprocessing
     """
+    # TODO: Handle here when doing AND and ORs of scenes vs scalars.
     if isinstance(f, F.And):
         masks_l = get_mask_global(masks, f.left)
         masks_r = get_mask_global(masks, f.right)
-        masks_both = []
-        for ml, mr in zip(masks_l, masks_r):
-            mb = mask_and(ml, mr)
-            masks_both.append(mb)
-        return masks_both
+        if masks_l.ndim == 1 and masks_r.ndim == 3:
+            masks_l = masks_l[:, np.newaxis, np.newaxis]
+        elif masks_l.ndim == 3 and masks_r.ndim == 1:
+            masks_r = masks_r[:, np.newaxis, np.newaxis]
+        return np.logical_and(masks_l, masks_r)
     elif isinstance(f, F.Or):
         masks_l = get_mask_global(masks, f.left)
         masks_r = get_mask_global(masks, f.right)
-        masks_both = []
-        for ml, mr in zip(masks_l, masks_r):
-            mb = mask_or(ml, mr)
-            masks_both.append(mb)
-        return masks_both
+        if masks_l.ndim == 1 and masks_r.ndim == 3:
+            masks_l = masks_l[:, np.newaxis, np.newaxis]
+        elif masks_l.ndim == 3 and masks_r.ndim == 1:
+            masks_r = masks_r[:, np.newaxis, np.newaxis]
+        return np.logical_or(masks_l, masks_r)
     elif isinstance(f, F.Not):
         masks_val = get_mask_global(masks, f.val)
-        masks_not = []
-        for m in masks_val:
-            mn = mask_not(m)
-            masks_not.append(mn)
-        return masks_not
+        return np.logical_not(masks_val)
     elif isinstance(f, F.Leaf):
         return masks[f.val]
     else:
         raise ValueError("Most be passed formula")
-
-
-# TODO: Link with formula?
-def mask_and(ml, mr):
-    if ml is None:
-        return None
-    if mr is None:
-        return None
-    if len(ml.shape) == 0:
-        # ML is 1 - and is mr
-        return mr
-    if len(mr.shape) == 0:
-        return ml
-    return np.bitwise_and(ml, mr)
-
-
-def mask_or(ml, mr):
-    if ml is None:
-        return mr
-    if mr is None:
-        return ml
-    if len(ml.shape) == 0:
-        # ML is 1 - or is 1
-        return ml
-    if len(mr.shape) == 0:
-        # MR is 1 - or is 1
-        return mr
-    return np.bitwise_or(ml, mr)
-
-
-def mask_not(m):
-    if m is None:
-        return np.uint8(1)
-    if len(m.shape) == 0:
-        return None
-    return np.bitwise_not(m)
 
 
 class MaskCatalog:
@@ -94,23 +57,22 @@ class MaskCatalog:
             #  with open(self.cache_file) as f:
                 #  self.masks = pickle.load(f)
         self.masks = {}
-        data_size = self.prefetcher.segmentation.size()
-        categories = self.prefetcher.segmentation.category_names()
-        n_labels = len(self.prefetcher.segmentation.primary_categories_per_index())
-        self.img2cat = np.zeros((data_size, len(categories)), dtype=np.uint8)
-        self.img2label = np.zeros((data_size, n_labels), dtype=np.uint8)
+        self.data_size = self.prefetcher.segmentation.size()
+        self.categories = self.prefetcher.segmentation.category_names()
+        self.n_labels = len(self.prefetcher.segmentation.primary_categories_per_index())
+        self.img2cat = np.zeros((self.data_size, len(self.categories)), dtype=np.bool)
+        self.img2label = np.zeros((self.data_size, self.n_labels), dtype=np.bool)
         if settings.PROBE_DATASET == 'broden':
             self.mask_shape = (112, 112)  # Hardcode this - hopefully it doesn't chnge
         else:
             self.mask_shape = (224, 224)
 
-        n_batches = int(np.ceil(data_size / settings.TALLY_BATCH_SIZE))
+        n_batches = int(np.ceil(self.data_size / settings.TALLY_BATCH_SIZE))
         for batch in tqdm(self.prefetcher.batches(), desc='Loading masks',
                           total=n_batches):
             for concept_map in batch:
                 img_index = concept_map['i']
-                seg_shape = (concept_map['sh'], concept_map['sw'])
-                for cat_i, cat in enumerate(categories):
+                for cat_i, cat in enumerate(self.categories):
                     label_group = concept_map[cat]
                     shape = np.shape(label_group)
                     if len(shape) % 2 == 0:
@@ -126,23 +88,11 @@ class MaskCatalog:
                                 # Treat it at pixel-level because a feature can be bgoth a pixel-level annotation and a  may
                                 # FIXME: Actually, is that why the cat information is there?
                                 # But tally labels doesn't care abouut categories...so are they just treated like overlaps?
-                                self.initialize_mask(feat, 'pixel', seg_shape=seg_shape)
-                            bin_mask = np.ones(seg_shape, dtype=np.bool)
-                            if self.masks[feat][img_index] is None:
-                                # Set as 1 to save space
-                                self.masks[feat][img_index] = np.uint8(1)
-                            elif len(self.masks[feat][img_index].shape) == 0:
-                                # It's already a scalar label and we have another scalar label?
-                                # Will this happen?
-                                self.masks[feat][img_index] = np.uint8(1)
-                            else:
-                                # We have a mask and we're adding a scalar label.
-                                # So override everywhere
-                                print("Conflict")
-                                self.masks[feat][img_index] = np.uint8(1)
+                                self.initialize_mask(feat, 'scalar')
+                            self.masks[feat][img_index] = True
                             # This image displays this category
-                            self.img2cat[img_index][cat_i] = 1
-                            self.img2label[img_index, feat] = 1
+                            self.img2cat[img_index][cat_i] = True
+                            self.img2label[img_index, feat] = True
                     else:
                         # Pixels
                         feats = np.unique(label_group.ravel())
@@ -151,8 +101,7 @@ class MaskCatalog:
                             if feat == 0:
                                 continue
                             if feat not in self.masks:
-                                self.initialize_mask(feat, 'pixel', seg_shape=seg_shape)
-                            # We may want to make this COO sparse (let's look at memory usage)
+                                self.initialize_mask(feat, 'pixel')
                             # NOTE: sometimes label group is > 1 length (e.g.
                             # for parts) which means there are overlapping
                             # parts belonging to differrent objects. afaict
@@ -163,24 +112,10 @@ class MaskCatalog:
                             else:
                                 bin_mask = np.zeros_like(label_group[0])
                                 for lg in label_group:
-                                    bin_mask = np.bitwise_or(bin_mask, (lg == feat))
-                            if self.masks[feat][img_index] is None:
-                                self.masks[feat][img_index] = bin_mask
-                            elif len(self.masks[feat][img_index].shape) == 0:
-                                # What does this mean - image was marked with
-                                # e.g. category 86 as a scalar - now therer's
-                                # also a mask - then which one do we care
-                                # about?
-                                print("Conflict")
-                                pass
-                            else:
-                                # There are cases where features overlap across
-                                # categories we've seen the feature before...not
-                                # sure why (img_index 21/feature 86) but this is ignored in
-                                # the original tally too so \shrug
-                                self.masks[feat][img_index] = np.bitwise_or(self.masks[feat][img_index], bin_mask)
-                            self.img2label[img_index, feat] = 1
-                            self.img2cat[img_index][cat_i] = 1
+                                    bin_mask = np.logical_or(bin_mask, (lg == feat))
+                            self.masks[feat][img_index] = np.logical_or(self.masks[feat][img_index], bin_mask)
+                            self.img2label[img_index, feat] = True
+                            self.img2cat[img_index][cat_i] = True
 
         self.labels = sorted(list(self.masks.keys()))
 
@@ -188,15 +123,15 @@ class MaskCatalog:
         return get_mask_global(self.masks, f)
 
 
-    def initialize_mask(self, i, mask_type, seg_shape=(112, 112)):
+    def initialize_mask(self, i, mask_type):
         if i in self.masks:
             raise ValueError(f"Already initialized {i}")
         # Otherwise, this depends on whether i annotation is scalar or (I think)
         # NOTE: They may not be consistent, in which case change this code
         # NOTE: some features are both scalars and end up being other things too. that's fine
-        #  if mask_type == 'scalar':
-            #  self.masks[i] = np.zeros(self.prefetcher.segmentation.size(), dtype=np.uint8)
-        if mask_type == 'pixel':
-            self.masks[i] = [None for _ in range(self.prefetcher.segmentation.size())]
+        if mask_type == 'scalar':
+            self.masks[i] = np.zeros(self.data_size, dtype=np.bool)
+        elif mask_type == 'pixel':
+            self.masks[i] = np.zeros((self.data_size, *self.mask_shape), dtype=np.bool)
         else:
             raise ValueError(f"Unknown mask type {mask_type}")

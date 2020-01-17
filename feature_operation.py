@@ -158,26 +158,23 @@ class FeatureOperator:
     @staticmethod
     def get_uhits(args):
         u, = args
-        #  u, ufeat, uthresh, img2cat, mask_shape = args
         ufeat = g['features'][:, u]
         uthresh = g['threshold'][u]
         img2cat = g['img2cat']
         mask_shape = g['mask_shape']
-        uidx = [i for i, uf in enumerate(ufeat) if uf.max() > uthresh]
+        uidx = np.argwhere(ufeat.max((1, 2)) > uthresh).squeeze(1)
         ufeat = np.array([upsample_features(ufeat[i], mask_shape) for i in uidx])
-        ucats_disj = np.array([np.bitwise_or.outer(img2cat[i], img2cat[i]) for i in uidx])
-        ucats_conj = np.array([np.bitwise_and.outer(img2cat[i], img2cat[i]) for i in uidx])
+        # Can probably use einsum to vectorize this
+        ucats_disj = np.array([np.logical_or.outer(img2cat[i], img2cat[i]) for i in uidx])
+        ucats_conj = np.array([np.logical_and.outer(img2cat[i], img2cat[i]) for i in uidx])
 
         # Get indices where threshold is exceeded
-        uhitidx = [np.argwhere(uf > uthresh) for uf in ufeat]
+        uhitidx = ufeat > uthresh
 
         # Get lengths of those indicees
-        uhits = np.array([len(hidx) for hidx in uhitidx])
+        uhits = uhitidx.sum((1, 2))
         ucathits_disj = (ucats_disj * uhits[:, np.newaxis, np.newaxis]).sum(0)
         ucathits_conj = (ucats_conj * uhits[:, np.newaxis, np.newaxis]).sum(0)
-
-        # Get disjunctive hits (and TODO: conjunctive hits)
-        # For disjuncts of categories, only count images where at least one category hits
 
         return u, uidx, uhitidx, ucathits_disj, ucathits_conj
 
@@ -260,13 +257,13 @@ class FeatureOperator:
         g['all_uidx'] = all_uidx
         g['all_uhitidx'] = all_uhitidx
         with mp.Pool(settings.PARALLEL) as p, tqdm(total=units, desc='Tallying units') as pbar:
-            for (u, uidx, uhitidx, ucathits_disj, ucathits_conj) in p.imap_unordered(FeatureOperator.get_uhits, mp_args):
+            for (u, uidx, uhitidx, ucathits_disj, ucathits_conj) in map(FeatureOperator.get_uhits, mp_args):
                 # Shouldn't need longs here (less than 65553)
-                all_uidx[u] = np.array(uidx, dtype=np.uint32)
-                all_uhitidx[u] = [np.array(uhi, dtype=np.uint32) for uhi in uhitidx]
+                all_uidx[u] = uidx
+                all_uhitidx[u] = uhitidx
                 # Get all labels which have at least one true here
-                label_hits = np.sum(mc.img2label[all_uidx[u]], axis=0)
-                pos_labels[u] =  np.argwhere(label_hits > 0).squeeze()
+                label_hits = mc.img2label[uidx].sum(0)
+                pos_labels[u] =  np.argwhere(label_hits > 0).squeeze(1)
 
                 tally_units_cat_disj[u] = ucathits_disj
                 tally_units_cat_conj[u] = ucathits_conj
@@ -278,7 +275,7 @@ class FeatureOperator:
         records = []
         mp_args = ((u, ) for u in range(units))
         with mp.Pool(settings.PARALLEL) as p, tqdm(total=units, desc='IoU - primitives') as pbar:
-            for (u, best_lab, best_iou) in p.imap_unordered(FeatureOperator.compute_best_iou, mp_args):
+            for (u, best_lab, best_iou) in map(FeatureOperator.compute_best_iou, mp_args):
                 best_name = best_lab.to_str(lambda name: data.name(None, name))
                 best_cat = best_lab.to_str(lambda name: categories[pcats[name]])
                 r = {
@@ -318,6 +315,7 @@ class FeatureOperator:
         new_formulas = {}
         for formula in formulas:
             # Consider all labels? That seems crazy...
+            # FIXME: even with bitwise operations this is still very slow
             for label in g['labels']:
                 for negate in [True, False]:
                     for op in (F.Or, F.And):
@@ -355,20 +353,16 @@ class FeatureOperator:
     def compute_iou(uidx, uhitidx, masks, tally_unit, tally_label):
         # Compute intersections
         tally_both = 0
-        for i, hitidx in zip(uidx, uhitidx):
-            # Mask for this image
-            mask = masks[i]
-            if mask is None:
-                continue
-            elif len(mask.shape) == 0:
-                # Scalar - anywhere this neuron is active is a hit
-                assert mask == 1
-                tally_both += len(hitidx)
-            else:
-                # Intersection
-                both = mask[hitidx[:, 0], hitidx[:, 1]]
-                tally_both += both.sum()
-
+        # Get masks that are nonzero according to uix
+        masks_i = masks[uidx]
+        if len(masks_i.shape) == 1:
+            # Scalars
+            good_masks = (masks_i == 1)
+            tally_both += uhitidx[good_masks].sum()
+        else:
+            # Pixels
+            both = np.logical_and(masks_i, uhitidx)
+            tally_both += both.sum()
         iou = (tally_both) / (tally_label + tally_unit - tally_both + 1e-10)
         return iou
 
