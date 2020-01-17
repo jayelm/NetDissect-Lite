@@ -314,36 +314,41 @@ class FeatureOperator:
 
         nonzero_iou = Counter({lab: iou for lab, iou in ious.items() if iou > 0})
         # Pick 10 best
-        nonzero_labs = [lab for lab, iou in nonzero_iou.most_common(10)]
-        # Conjunctions of features
-        for lab_left, lab_right in itertools.combinations(nonzero_labs, 2):
-            for comp in (F.Or, F.And):
-                comp_lab = comp(F.Leaf(lab_left), F.Leaf(lab_right))
-                masks_comp = get_mask_global(g['masks'], comp_lab)
-                cat_left = g['pcpi'][lab_left]
-                cat_right = g['pcpi'][lab_right]
-                if comp == F.And and cat_left == cat_right:
-                    continue  # Skip as there are no conjunctions within same-categories
-                # Compute tallies now
-                # WHAT do i do with tally_units_cat??
-                # I need TALLY UNITS comp cat?
-                comp_tally_label = FeatureOperator.compute_tally_label(masks_comp, g['mask_shape'])
-                if comp == F.Or:
-                    tuc = g['tally_units_cat_disj'][u, cat_left, cat_right]
-                elif comp == F.And:
-                    tuc = g['tally_units_cat_conj'][u, cat_left, cat_right]
-                else:
-                    raise RuntimeError
-                comp_iou = FeatureOperator.compute_iou(
-                    g['all_uidx'][u], g['all_uhitidx'][u], masks_comp, tuc, comp_tally_label
-                )
-                # Weight the iou by formula length
-                comp_iou = (settings.FORMULA_COMPLEXITY_PENALTY ** (len(comp_lab) - 1)) * comp_iou
+        formulas = {F.Leaf(lab): iou for lab, iou in nonzero_iou.most_common(10)}
+        new_formulas = {}
+        for formula in formulas:
+            # Consider all labels? That seems crazy...
+            for label in g['labels']:
+                for negate in [True, False]:
+                    for op in (F.Or, F.And):
+                        new_term = F.Leaf(label)
+                        if negate:
+                            new_term = F.Not(new_term)
+                        new_term = op(formula, new_term)
+                        masks_comp = get_mask_global(g['masks'], new_term)
+                        # TODO: This won't work once we start combining cats
+                        cat_left = g['pcpi'][formula.val]
+                        cat_right = g['pcpi'][label]
+                        comp_tally_label = FeatureOperator.compute_tally_label(masks_comp, g['mask_shape'])
+                        if op == F.Or:
+                            tuc = g['tally_units_cat_disj'][u, cat_left, cat_right]
+                        elif op == F.And:
+                            tuc = g['tally_units_cat_conj'][u, cat_left, cat_right]
+                        else:
+                            raise RuntimeError
+                        comp_iou = FeatureOperator.compute_iou(
+                            g['all_uidx'][u], g['all_uhitidx'][u], masks_comp, tuc, comp_tally_label
+                        )
 
-                if comp_iou > best_iou:
-                    best_iou = comp_iou
-                    best_lab = comp_lab
+                        comp_iou = (settings.FORMULA_COMPLEXITY_PENALTY ** (len(new_term) - 1)) * comp_iou
 
+                        new_formulas[new_term] = comp_iou
+
+        formulas.update(new_formulas)
+
+        best_lab, best_iou = Counter(formulas).most_common(1)[0]
+
+        # Get besti ou
         return u, best_lab, best_iou
 
     @staticmethod

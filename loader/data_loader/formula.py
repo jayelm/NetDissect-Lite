@@ -7,13 +7,16 @@ class Leaf(F):
         self.val = val
 
     def __str__(self):
-        return self.val
+        return str(self.val)
 
     def to_str(self, namer):
         return namer(self.val)
 
     def __len__(self):
         return 1
+
+    def __hash__(self):
+        return hash(str(self))
 
 
 class Node(F):
@@ -36,6 +39,9 @@ class UnaryNode(Node):
     def __len__(self):
         return 1 + len(self.val)
 
+    def __hash__(self):
+        return hash(str(self))
+
 
 class BinaryNode(Node):
     op = None
@@ -54,6 +60,9 @@ class BinaryNode(Node):
 
     def __len__(self):
         return len(self.left) + len(self.right)
+
+    def __hash__(self):
+        return hash(str(self))
 
 
 class Not(UnaryNode):

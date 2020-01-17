@@ -70,9 +70,8 @@ def mask_or(ml, mr):
 
 
 def mask_not(m):
-    breakpoint()
     if m is None:
-        return 1
+        return np.uint8(1)
     if len(m.shape) == 0:
         return None
     return np.bitwise_not(m)
