@@ -279,7 +279,6 @@ class FeatureOperator:
         mp_args = ((u, ) for u in range(units))
         with mp.Pool(settings.PARALLEL) as p, tqdm(total=units, desc='IoU - primitives') as pbar:
             for (u, best_lab, best_iou) in p.imap_unordered(FeatureOperator.compute_best_iou, mp_args):
-                # TODO: OOP
                 best_name = best_lab.to_str(lambda name: data.name(None, name))
                 best_cat = best_lab.to_str(lambda name: categories[pcats[name]])
                 r = {
@@ -290,77 +289,6 @@ class FeatureOperator:
                 }
                 records.append(r)
                 pbar.update()
-        #  breakpoint()
-
-        #  for u in trange(units, desc='IoU - primitives'):
-            #  best_lab = None
-            #  best_iou = 0.0
-            #  ious = {}
-            #  for lab in mc.labels:
-                #  cat_i = pcpi[lab]
-                #  masks = mc.get_mask(lab)
-                #  lab_iou = FeatureOperator.compute_iou(
-                    #  all_uidx[u], all_uhitidx[u], masks, tally_units_cat[u, cat_i, cat_i], tally_labels[lab])
-                #  ious[lab] = lab_iou
-                #  if not settings.FORCE_DISJUNCTION and lab_iou > best_iou:
-                    #  best_iou = lab_iou
-                    #  best_lab = lab
-
-            #  # ==== DISJUNCTIONS ====
-            #  nonzero_iou = {lab: iou for lab, iou in ious.items() if iou > 0}
-            #  nonzero_labs = list(nonzero_iou.keys())
-            #  for lab_left, lab_right in itertools.combinations(nonzero_labs, 2):
-                #  disj_lab = LFOr(lab_left, lab_right)
-                #  masks_disj = mc.get_mask(disj_lab)
-                #  cat_left = pcpi[lab_left]
-                #  cat_right = pcpi[lab_right]
-                #  # Compute tallies now
-                #  # WHAT do i do with tally_units_cat??
-                #  # I need TALLY UNITS DISJ cat?
-                #  disj_tally_label = FeatureOperator.compute_tally_label(masks_disj, mc.mask_shape)
-                #  disj_iou = FeatureOperator.compute_iou(
-                    #  all_uidx[u], all_uhitidx[u], masks_disj, tally_units_cat[u, cat_left, cat_right], disj_tally_label
-                #  )
-                #  if disj_iou > best_iou:
-                    #  print("Disjunction is better")
-                    #  best_iou = disj_iou
-                    #  best_lab = disj_lab
-
-            #  # TODO: OOP
-            #  if isinstance(best_lab, LFAnd):
-                #  best_cat = f"{categories[pcats[best_lab.left]]} AND {categories[pcats[best_lab.right]]}"
-                #  best_name = f"{data.name(None, best_lab.left)} AND {data.name(None, best_lab.right)}"
-            #  elif isinstance(best_lab, LFOr):
-                #  best_cat = f"{categories[pcats[best_lab.left]]} OR {categories[pcats[best_lab.right]]}"
-                #  best_name = f"{data.name(None, best_lab.left)} OR {data.name(None, best_lab.right)}"
-            #  else:
-                #  best_cat = pcats[best_lab]
-                #  best_name = data.name(None, best_lab)
-            #  r = {
-                #  'unit': (u + 1),
-                #  'category': best_cat if isinstance(best_cat, str) else categories[best_cat],
-                #  'label': best_name,
-                #  'score': best_iou
-            #  }
-            #  records.append(r)
-
-        # Memory usage too high
-        #  mp_args = (
-            #  (u, mc.labels, pcpi, mc.masks, all_uidx[u], all_uhitidx[u], tally_units_cat[u], tally_labels)
-            #  for u in range(units)
-        #  )
-        #  with mp.Pool(settings.PARALLEL) as p:
-            #  for (u, best_lab, best_iou) in p.imap_unordered(FeatureOperator.compute_best_iou,
-                                                            #  tqdm(mp_args, desc='Computing best iou', total=units)):
-                #  best_cat = pcats[best_lab]
-                #  best_name = data.name(None, best_lab)
-                #  r = {
-                    #  'unit': (u + 1),
-                    #  'category': categories[best_cat],
-                    #  'label': best_name,
-                    #  'score': best_iou
-                #  }
-                #  records.append(r)
 
         tally_df = pd.DataFrame(records)
         tally_df.to_csv(os.path.join(settings.OUTPUT_FOLDER, 'tally.csv'),
