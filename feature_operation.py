@@ -255,6 +255,8 @@ class FeatureOperator:
         )
         all_uidx = [None for _ in range(units)]
         all_uhitidx = [None for _ in range(units)]
+        pos_labels = [None for _ in range(units)]
+        g['pos_labels'] = pos_labels
         g['all_uidx'] = all_uidx
         g['all_uhitidx'] = all_uhitidx
         with mp.Pool(settings.PARALLEL) as p, tqdm(total=units, desc='Tallying units') as pbar:
@@ -262,6 +264,10 @@ class FeatureOperator:
                 # Shouldn't need longs here (less than 65553)
                 all_uidx[u] = np.array(uidx, dtype=np.uint32)
                 all_uhitidx[u] = [np.array(uhi, dtype=np.uint32) for uhi in uhitidx]
+                # Get all labels which have at least one true here
+                label_hits = np.sum(mc.img2label[all_uidx[u]], axis=0)
+                pos_labels[u] =  np.argwhere(label_hits > 0).squeeze()
+
                 tally_units_cat_disj[u] = ucathits_disj
                 tally_units_cat_conj[u] = ucathits_conj
                 pbar.update()
@@ -367,13 +373,7 @@ class FeatureOperator:
         best_lab = None
         best_iou = 0.0
         ious = {}
-        #  print(g['labels'])
-        #  print(g['all_uhitidx'].shape)
-        #  print(len(g['masks']))
-        #  print(len(g['all_uhitidx']))
-        #  print(len(g['all_uhitidx'][0]))
-        #  print(len(g['all_uidx']))
-        for lab in g['labels']:
+        for lab in g['pos_labels'][u]:
             lab_f = F.Leaf(lab)
             cat_i = g['pcpi'][lab]
             masks = g['masks'][lab]
@@ -384,16 +384,10 @@ class FeatureOperator:
                 best_iou = lab_iou
                 best_lab = lab_f
 
-        # T
-        #  import cProfile, pstats, io
-        #  from pstats import SortKey
-        #  pr = cProfile.Profile()
-        #  pr.enable()
-        # T
-
         nonzero_iou = Counter({lab: iou for lab, iou in ious.items() if iou > 0})
         # Pick 10 best
         nonzero_labs = [lab for lab, iou in nonzero_iou.most_common(10)]
+        # Conjunctions of features
         for lab_left, lab_right in itertools.combinations(nonzero_labs, 2):
             for comp in (F.Or, F.And):
                 comp_lab = comp(F.Leaf(lab_left), F.Leaf(lab_right))
@@ -421,16 +415,6 @@ class FeatureOperator:
                 if comp_iou > best_iou:
                     best_iou = comp_iou
                     best_lab = comp_lab
-
-        # T
-        #  pr.disable()
-        #  s = io.StringIO()
-        #  sortby = SortKey.CUMULATIVE
-        #  ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-        #  ps.print_stats()
-        #  print(s.getvalue())
-        #  breakpoint()
-        # T
 
         return u, best_lab, best_iou
 

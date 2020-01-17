@@ -28,12 +28,20 @@ def get_mask_global(masks, f):
             mb = mask_or(ml, mr)
             masks_both.append(mb)
         return masks_both
+    elif isinstance(f, F.Not):
+        masks_val = get_mask_global(masks, f.val)
+        masks_not = []
+        for m in masks_val:
+            mn = mask_not(m)
+            masks_not.append(mn)
+        return masks_not
     elif isinstance(f, F.Leaf):
         return masks[f.val]
     else:
         raise ValueError("Most be passed formula")
 
 
+# TODO: Link with formula?
 def mask_and(ml, mr):
     if ml is None:
         return None
@@ -61,6 +69,15 @@ def mask_or(ml, mr):
     return np.bitwise_or(ml, mr)
 
 
+def mask_not(m):
+    breakpoint()
+    if m is None:
+        return 1
+    if len(m.shape) == 0:
+        return None
+    return np.bitwise_not(m)
+
+
 class MaskCatalog:
     # A map from
     # label -> [list of Option[np.arrays]]
@@ -80,7 +97,9 @@ class MaskCatalog:
         self.masks = {}
         data_size = self.prefetcher.segmentation.size()
         categories = self.prefetcher.segmentation.category_names()
+        n_labels = len(self.prefetcher.segmentation.primary_categories_per_index())
         self.img2cat = np.zeros((data_size, len(categories)), dtype=np.uint8)
+        self.img2label = np.zeros((data_size, n_labels), dtype=np.uint8)
         if settings.PROBE_DATASET == 'broden':
             self.mask_shape = (112, 112)  # Hardcode this - hopefully it doesn't chnge
         else:
@@ -124,6 +143,7 @@ class MaskCatalog:
                                 self.masks[feat][img_index] = np.uint8(1)
                             # This image displays this category
                             self.img2cat[img_index][cat_i] = 1
+                            self.img2label[img_index, feat] = 1
                     else:
                         # Pixels
                         feats = np.unique(label_group.ravel())
@@ -160,6 +180,7 @@ class MaskCatalog:
                                 # sure why (img_index 21/feature 86) but this is ignored in
                                 # the original tally too so \shrug
                                 self.masks[feat][img_index] = np.bitwise_or(self.masks[feat][img_index], bin_mask)
+                            self.img2label[img_index, feat] = 1
                             self.img2cat[img_index][cat_i] = 1
 
         self.labels = sorted(list(self.masks.keys()))
