@@ -37,7 +37,7 @@ class FeatureOperator:
     def __init__(self):
         os.makedirs(os.path.join(settings.OUTPUT_FOLDER, 'image'), exist_ok=True)
         if settings.PROBE_DATASET == 'broden':
-            self.data = SegmentationData(settings.DATA_DIRECTORY, categories=settings.CATAGORIES)
+            self.data = SegmentationData(settings.DATA_DIRECTORY, categories=settings.CATEGORIES)
             self.loader = SegmentationPrefetcher(self.data,categories=['image'],once=True,batch_size=settings.BATCH_SIZE)
             self.mean = [109.5388,118.6897,124.6901]
         elif settings.PROBE_DATASET == 'cub':
@@ -183,11 +183,9 @@ class FeatureOperator:
 
     @staticmethod
     def compute_tally_label(masks, mask_shape):
-        #  masks = torch.from_numpy(masks).cuda()
-        #  breakpoint()
         if masks.ndim == 3:
             #  return masks.sum()
-            return np.count_nonzero(masks.ravel())
+            return np.count_nonzero(masks)
         else:
             #  return masks.sum() * mask_shape[0] * mask_shape[1]
             return np.count_nonzero(masks) * mask_shape[0] * mask_shape[1]
@@ -268,7 +266,8 @@ class FeatureOperator:
 
         records = []
         mp_args = ((u, ) for u in range(units))
-        with mp.Pool(settings.PARALLEL) as p, tqdm(total=units, desc='IoU - primitives') as pbar:
+        #  with mp.Pool(settings.PARALLEL) as p, tqdm(total=units, desc='IoU - primitives') as pbar:
+        with tqdm(total=units, desc='IoU - primitives') as pbar:
             for (u, best_lab, best_iou) in map(FeatureOperator.compute_best_iou, mp_args):
                 best_name = best_lab.to_str(lambda name: data.name(None, name))
                 best_cat = best_lab.to_str(lambda name: categories[pcats[name]])
@@ -295,7 +294,7 @@ class FeatureOperator:
         for lab in g['pos_labels'][u]:
             lab_f = F.Leaf(lab)
             cat_i = g['pcpi'][lab]
-            masks = get_mask_global(g['masks'], lab_f)
+            masks = get_mask_global(g['mask_tensors'], lab_f)
             lab_iou = FeatureOperator.compute_iou(
                 g['all_uidx'][u], g['all_uhitidx'][u], masks, g['tally_units_cat_disj'][u, cat_i, cat_i], g['tally_labels'][lab])
             ious[lab] = lab_iou
@@ -322,7 +321,7 @@ class FeatureOperator:
                         if negate:
                             new_term = F.Not(new_term)
                         new_term = op(formula, new_term)
-                        masks_comp = get_mask_global(g['masks'], new_term)
+                        masks_comp = get_mask_global(g['mask_tensors'], new_term)
                         # TODO: This won't work once we start combining cats
                         cat_left = g['pcpi'][formula.val]
                         cat_right = g['pcpi'][label]
