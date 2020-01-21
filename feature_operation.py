@@ -19,6 +19,8 @@ import csv
 from collections import Counter
 import itertools
 
+from torchvision.transforms.functional import to_pil_image, resize, to_tensor
+
 # Janky - globals for multiprocessing to prevent shared memory
 g = {}
 
@@ -28,7 +30,7 @@ def hook_feature(module, inp, output):
 
 
 def upsample_features(features, shape):
-    return np.array(Image.fromarray(features).resize(shape, resample=Image.BILINEAR))
+    return to_tensor(resize(to_pil_image(features, mode='F'), shape, interpolation=Image.BILINEAR))
 
 
 class FeatureOperator:
@@ -162,46 +164,33 @@ class FeatureOperator:
         uthresh = g['threshold'][u]
         img2cat = g['img2cat']
         mask_shape = g['mask_shape']
-        uidx = np.argwhere(ufeat.max((1, 2)) > uthresh).squeeze(1)
-        ufeat = np.array([upsample_features(ufeat[i], mask_shape) for i in uidx])
+        uidx = torch.nonzero(ufeat.max(1)[0].max(1)[0] > uthresh).squeeze(1)
+        ufeat = torch.stack([upsample_features(ufeat[i], mask_shape) for i in uidx]).squeeze(1)
         # Can probably use einsum to vectorize this
-        ucats_disj = np.array([np.logical_or.outer(img2cat[i], img2cat[i]) for i in uidx])
-        ucats_conj = np.array([np.logical_and.outer(img2cat[i], img2cat[i]) for i in uidx])
+        # TODO: What's the torch version here?
+        ucats_disj = torch.from_numpy(np.array([np.logical_or.outer(img2cat[i], img2cat[i]) for i in uidx]))
+        ucats_conj = torch.from_numpy(np.array([np.logical_and.outer(img2cat[i], img2cat[i]) for i in uidx]))
 
         # Get indices where threshold is exceeded
         uhitidx = ufeat > uthresh
 
         # Get lengths of those indicees
-        uhits = uhitidx.sum((1, 2))
-        ucathits_disj = (ucats_disj * uhits[:, np.newaxis, np.newaxis]).sum(0)
-        ucathits_conj = (ucats_conj * uhits[:, np.newaxis, np.newaxis]).sum(0)
+        uhits = torch.sum(torch.sum(uhitidx, 2, keepdim=True), 1, keepdim=True)
+        ucathits_disj = (ucats_disj * uhits).sum(0)
+        ucathits_conj = (ucats_conj * uhits).sum(0)
 
         return u, uidx, uhitidx, ucathits_disj, ucathits_conj
 
     @staticmethod
-    def compute_tally_labels_mp(args):
-        tlab = 0
-        lab, masks, mask_shape = args
-        for m in masks:
-            if m is None:
-                continue
-            elif len(m.shape) == 0:
-                tlab += mask_shape[0] * mask_shape[1]
-            else:
-                tlab += m.sum()
-        return lab, tlab
-
-    @staticmethod
     def compute_tally_label(masks, mask_shape):
-        tlab = 0
-        for m in masks:
-            if m is None:
-                continue
-            elif len(m.shape) == 0:
-                tlab += mask_shape[0] * mask_shape[1]
-            else:
-                tlab += m.sum()
-        return tlab
+        #  masks = torch.from_numpy(masks).cuda()
+        #  breakpoint()
+        if masks.ndim == 3:
+            #  return masks.sum()
+            return np.count_nonzero(masks.ravel())
+        else:
+            #  return masks.sum() * mask_shape[0] * mask_shape[1]
+            return np.count_nonzero(masks) * mask_shape[0] * mask_shape[1]
 
     @staticmethod
     def tally_job_search(args):
@@ -224,27 +213,32 @@ class FeatureOperator:
                                            end=end)
         # Cache all masks so they can be looked up
         mc = MaskCatalog(pf)
-        g['mc'] = MaskCatalog(pf)
+        g['mc'] = mc
         g['labels'] = mc.labels
+        # Some ops are faster on numpy, some are faster w/ tensors...since
+        # tensors are just view into numpy, this is fine
         g['masks'] = mc.masks
+        g['mask_tensors'] = mc.mask_tensors
         g['img2cat'] = mc.img2cat
         g['mask_shape'] = mc.mask_shape
 
         # Cache label tallies
         g['tally_labels'] = {}
-        for lab in mc.labels:
+        for lab in tqdm(mc.labels, desc='Tally label'):
+            #  masks = mc.get_mask(F.Leaf(lab)).cpu().numpy()
             masks = mc.get_mask(F.Leaf(lab))
+            #  masks = masks.cuda()
             g['tally_labels'][lab] = FeatureOperator.compute_tally_label(masks, mc.mask_shape)
 
         # w/ disjunctions
         tally_units_cat_disj = np.zeros((units, len(categories), len(categories)), dtype=np.int64)
         tally_units_cat_conj = np.zeros((units, len(categories), len(categories)), dtype=np.int64)
-        g['tally_units_cat_disj'] = tally_units_cat_disj
-        g['tally_units_cat_conj'] = tally_units_cat_conj
+        g['tally_units_cat_disj'] = torch.from_numpy(tally_units_cat_disj)
+        g['tally_units_cat_conj'] = torch.from_numpy(tally_units_cat_conj)
         records = []
 
         # Get unit information (this is expensive (upsampling) and where most of the work is done)
-        g['features'] = features
+        g['features'] = torch.from_numpy(features)
         g['threshold'] = threshold
         mp_args = (
             (u, )
@@ -256,14 +250,14 @@ class FeatureOperator:
         g['pos_labels'] = pos_labels
         g['all_uidx'] = all_uidx
         g['all_uhitidx'] = all_uhitidx
-        with mp.Pool(settings.PARALLEL) as p, tqdm(total=units, desc='Tallying units') as pbar:
+        #  with mp.Pool(settings.PARALLEL) as p, tqdm(total=units, desc='Tallying units') as pbar:
+        with tqdm(total=units, desc='Tallying units') as pbar:
             for (u, uidx, uhitidx, ucathits_disj, ucathits_conj) in map(FeatureOperator.get_uhits, mp_args):
-                # Shouldn't need longs here (less than 65553)
                 all_uidx[u] = uidx
                 all_uhitidx[u] = uhitidx
                 # Get all labels which have at least one true here
                 label_hits = mc.img2label[uidx].sum(0)
-                pos_labels[u] =  np.argwhere(label_hits > 0).squeeze(1)
+                pos_labels[u] =  torch.nonzero(label_hits > 0).squeeze(1).numpy()
 
                 tally_units_cat_disj[u] = ucathits_disj
                 tally_units_cat_conj[u] = ucathits_conj
@@ -301,7 +295,7 @@ class FeatureOperator:
         for lab in g['pos_labels'][u]:
             lab_f = F.Leaf(lab)
             cat_i = g['pcpi'][lab]
-            masks = g['masks'][lab]
+            masks = get_mask_global(g['masks'], lab_f)
             lab_iou = FeatureOperator.compute_iou(
                 g['all_uidx'][u], g['all_uhitidx'][u], masks, g['tally_units_cat_disj'][u, cat_i, cat_i], g['tally_labels'][lab])
             ious[lab] = lab_iou
@@ -312,6 +306,11 @@ class FeatureOperator:
         nonzero_iou = Counter({lab: iou for lab, iou in ious.items() if iou > 0})
         # Pick 10 best
         formulas = {F.Leaf(lab): iou for lab, iou in nonzero_iou.most_common(10)}
+
+        #  import cProfile, pstats, io
+        #  pr = cProfile.Profile()
+        #  pr.enable()
+
         new_formulas = {}
         for formula in formulas:
             # Consider all labels? That seems crazy...
@@ -344,6 +343,14 @@ class FeatureOperator:
 
         formulas.update(new_formulas)
 
+        #  pr.disable()
+        #  s = io.StringIO()
+        #  sortby = 'cumulative'
+        #  ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        #  ps.print_stats()
+        #  print(s.getvalue())
+        #  breakpoint()
+
         best_lab, best_iou = Counter(formulas).most_common(1)[0]
 
         # Get besti ou
@@ -352,17 +359,18 @@ class FeatureOperator:
     @staticmethod
     def compute_iou(uidx, uhitidx, masks, tally_unit, tally_label):
         # Compute intersections
-        tally_both = 0
         # Get masks that are nonzero according to uix
         masks_i = masks[uidx]
-        if len(masks_i.shape) == 1:
+        if masks_i.ndim == 1:
             # Scalars
-            good_masks = (masks_i == 1)
-            tally_both += uhitidx[good_masks].sum()
+            tally_both = uhitidx[masks_i].sum()
+            #  tally_both = uhitidx[masks_i].nonzero().shape[0]
         else:
             # Pixels
-            both = np.logical_and(masks_i, uhitidx)
-            tally_both += both.sum()
+            #  both = np.logical_and(masks_i, uhitidx)
+            both = masks_i & uhitidx
+            tally_both = both.sum()
+            #  tally_both = both.nonzero().shape[0]
         iou = (tally_both) / (tally_label + tally_unit - tally_both + 1e-10)
         return iou
 
