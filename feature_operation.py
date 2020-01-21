@@ -191,6 +191,13 @@ class FeatureOperator:
             return np.count_nonzero(masks) * mask_shape[0] * mask_shape[1]
 
     @staticmethod
+    def compute_tally_label_t(masks, mask_shape):
+        if masks.ndim == 3:
+            return masks.sum()
+        else:
+            return masks.sum() * mask_shape[0] * mask_shape[1]
+
+    @staticmethod
     def tally_job_search(args):
         features, data, threshold, tally_labels, tally_units, tally_units_cat, tally_both, start, end = args
 
@@ -252,7 +259,7 @@ class FeatureOperator:
         with tqdm(total=units, desc='Tallying units') as pbar:
             for (u, uidx, uhitidx, ucathits_disj, ucathits_conj) in map(FeatureOperator.get_uhits, mp_args):
                 all_uidx[u] = uidx
-                all_uhitidx[u] = uhitidx
+                all_uhitidx[u] = uhitidx.cuda()
                 # Get all labels which have at least one true here
                 label_hits = mc.img2label[uidx].sum(0)
                 pos_labels[u] =  torch.nonzero(label_hits > 0).squeeze(1).numpy()
@@ -294,7 +301,7 @@ class FeatureOperator:
         for lab in g['pos_labels'][u]:
             lab_f = F.Leaf(lab)
             cat_i = g['pcpi'][lab]
-            masks = get_mask_global(g['mask_tensors'], lab_f)
+            masks = get_mask_global(g['mask_tensors'], lab_f, cuda=True)
             lab_iou = FeatureOperator.compute_iou(
                 g['all_uidx'][u], g['all_uhitidx'][u], masks, g['tally_units_cat_disj'][u, cat_i, cat_i], g['tally_labels'][lab])
             ious[lab] = lab_iou
@@ -321,11 +328,11 @@ class FeatureOperator:
                         if negate:
                             new_term = F.Not(new_term)
                         new_term = op(formula, new_term)
-                        masks_comp = get_mask_global(g['mask_tensors'], new_term)
+                        masks_comp = get_mask_global(g['mask_tensors'], new_term, cuda=True)
                         # TODO: This won't work once we start combining cats
                         cat_left = g['pcpi'][formula.val]
                         cat_right = g['pcpi'][label]
-                        comp_tally_label = FeatureOperator.compute_tally_label(masks_comp, g['mask_shape'])
+                        comp_tally_label = FeatureOperator.compute_tally_label_t(masks_comp, g['mask_shape'])
                         if op == F.Or:
                             tuc = g['tally_units_cat_disj'][u, cat_left, cat_right]
                         elif op == F.And:

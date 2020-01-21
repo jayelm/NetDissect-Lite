@@ -16,31 +16,33 @@ def to_dense(f):
     return to_dense_wrapper
 
 
-def get_mask_global(masks, f):
+def get_mask_global(masks, f, cuda=False):
     """
     Serializable/global version of get_mask for multiprocessing
     """
     # TODO: Handle here when doing AND and ORs of scenes vs scalars.
     if isinstance(f, F.And):
-        masks_l = get_mask_global(masks, f.left)
-        masks_r = get_mask_global(masks, f.right)
+        masks_l = get_mask_global(masks, f.left, cuda=cuda)
+        masks_r = get_mask_global(masks, f.right, cuda=cuda)
         if masks_l.ndim == 1 and masks_r.ndim == 3:
             masks_l = masks_l.unsqueeze(1).unsqueeze(1)
         elif masks_l.ndim == 3 and masks_r.ndim == 1:
             masks_r = masks_r.unsqueeze(1).unsqueeze(1)
         return masks_l & masks_r
     elif isinstance(f, F.Or):
-        masks_l = get_mask_global(masks, f.left)
-        masks_r = get_mask_global(masks, f.right)
+        masks_l = get_mask_global(masks, f.left, cuda=cuda)
+        masks_r = get_mask_global(masks, f.right, cuda=cuda)
         if masks_l.ndim == 1 and masks_r.ndim == 3:
             masks_l = masks_l.unsqueeze(1).unsqueeze(1)
         elif masks_l.ndim == 3 and masks_r.ndim == 1:
             masks_r = masks_r.unsqueeze(1).unsqueeze(1)
         return masks_l | masks_r
     elif isinstance(f, F.Not):
-        masks_val = get_mask_global(masks, f.val)
+        masks_val = get_mask_global(masks, f.val, cuda=cuda)
         return ~masks_val
     elif isinstance(f, F.Leaf):
+        if cuda:
+            return masks[f.val].cuda()
         return masks[f.val]
     else:
         raise ValueError("Most be passed formula")
