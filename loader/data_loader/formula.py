@@ -18,6 +18,9 @@ class Leaf(F):
     def __hash__(self):
         return hash(str(self))
 
+    def __repr__(self):
+        return f"Leaf({str(self)})"
+
 
 class Node(F):
     pass
@@ -42,6 +45,9 @@ class UnaryNode(Node):
     def __hash__(self):
         return hash(str(self))
 
+    def __repr__(self):
+        return f"{self.op}({self.val})"
+
 
 class BinaryNode(Node):
     op = None
@@ -63,6 +69,9 @@ class BinaryNode(Node):
 
     def __hash__(self):
         return hash(str(self))
+
+    def __repr__(self):
+        return f"{self.op}({self.left}, {self.right})"
 
 
 class Not(UnaryNode):

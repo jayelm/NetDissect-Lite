@@ -19,6 +19,8 @@ import csv
 from collections import Counter
 import itertools
 
+from pycocotools import mask as cmask
+
 # Janky - globals for multiprocessing to prevent shared memory
 g = {}
 
@@ -168,40 +170,23 @@ class FeatureOperator:
         ucats_disj = np.array([np.logical_or.outer(img2cat[i], img2cat[i]) for i in uidx])
         ucats_conj = np.array([np.logical_and.outer(img2cat[i], img2cat[i]) for i in uidx])
 
+        # Create full array
+        uhitidx = np.zeros((g['features'].shape[0], *mask_shape), dtype=np.bool)
+
         # Get indices where threshold is exceeded
-        uhitidx = ufeat > uthresh
+        uhit_subset = ufeat > uthresh
+        uhitidx[uidx] = uhit_subset
 
         # Get lengths of those indicees
-        uhits = uhitidx.sum((1, 2))
+        uhits = uhit_subset.sum((1, 2))
         ucathits_disj = (ucats_disj * uhits[:, np.newaxis, np.newaxis]).sum(0)
         ucathits_conj = (ucats_conj * uhits[:, np.newaxis, np.newaxis]).sum(0)
 
-        return u, uidx, uhitidx, ucathits_disj, ucathits_conj
+        # Save as compressed
+        uhitidx_flat = uhitidx.reshape((uhitidx.shape[0] * uhitidx.shape[1], uhitidx.shape[2]))
+        uhit_mask = cmask.encode(np.asfortranarray(uhitidx_flat))
 
-    @staticmethod
-    def compute_tally_labels_mp(args):
-        tlab = 0
-        lab, masks, mask_shape = args
-        for m in masks:
-            if m is None:
-                continue
-            elif len(m.shape) == 0:
-                tlab += mask_shape[0] * mask_shape[1]
-            else:
-                tlab += m.sum()
-        return lab, tlab
-
-    @staticmethod
-    def compute_tally_label(masks, mask_shape):
-        tlab = 0
-        for m in masks:
-            if m is None:
-                continue
-            elif len(m.shape) == 0:
-                tlab += mask_shape[0] * mask_shape[1]
-            else:
-                tlab += m.sum()
-        return tlab
+        return u, uidx, uhit_mask, ucathits_disj, ucathits_conj
 
     @staticmethod
     def tally_job_search(args):
@@ -224,7 +209,7 @@ class FeatureOperator:
                                            end=end)
         # Cache all masks so they can be looked up
         mc = MaskCatalog(pf)
-        g['mc'] = MaskCatalog(pf)
+        g['mc'] = mc
         g['labels'] = mc.labels
         g['masks'] = mc.masks
         g['img2cat'] = mc.img2cat
@@ -232,9 +217,9 @@ class FeatureOperator:
 
         # Cache label tallies
         g['tally_labels'] = {}
-        for lab in mc.labels:
+        for lab in tqdm(mc.labels, desc='Tally labels'):
             masks = mc.get_mask(F.Leaf(lab))
-            g['tally_labels'][lab] = FeatureOperator.compute_tally_label(masks, mc.mask_shape)
+            g['tally_labels'][lab] = cmask.area(masks)
 
         # w/ disjunctions
         tally_units_cat_disj = np.zeros((units, len(categories), len(categories)), dtype=np.int64)
@@ -257,8 +242,7 @@ class FeatureOperator:
         g['all_uidx'] = all_uidx
         g['all_uhitidx'] = all_uhitidx
         with mp.Pool(settings.PARALLEL) as p, tqdm(total=units, desc='Tallying units') as pbar:
-            for (u, uidx, uhitidx, ucathits_disj, ucathits_conj) in map(FeatureOperator.get_uhits, mp_args):
-                # Shouldn't need longs here (less than 65553)
+            for (u, uidx, uhitidx, ucathits_disj, ucathits_conj) in p.imap_unordered(FeatureOperator.get_uhits, mp_args):
                 all_uidx[u] = uidx
                 all_uhitidx[u] = uhitidx
                 # Get all labels which have at least one true here
@@ -275,7 +259,7 @@ class FeatureOperator:
         records = []
         mp_args = ((u, ) for u in range(units))
         with mp.Pool(settings.PARALLEL) as p, tqdm(total=units, desc='IoU - primitives') as pbar:
-            for (u, best_lab, best_iou) in map(FeatureOperator.compute_best_iou, mp_args):
+            for (u, best_lab, best_iou) in p.imap_unordered(FeatureOperator.compute_best_iou, mp_args):
                 best_name = best_lab.to_str(lambda name: data.name(None, name))
                 best_cat = best_lab.to_str(lambda name: categories[pcats[name]])
                 r = {
@@ -311,13 +295,13 @@ class FeatureOperator:
 
         nonzero_iou = Counter({lab: iou for lab, iou in ious.items() if iou > 0})
         # Pick 10 best
-        formulas = {F.Leaf(lab): iou for lab, iou in nonzero_iou.most_common(10)}
+        formulas = {F.Leaf(lab): iou for lab, iou in nonzero_iou.most_common(settings.BEAM_SIZE)}
         new_formulas = {}
         for formula in formulas:
             # Consider all labels? That seems crazy...
             # FIXME: even with bitwise operations this is still very slow
             for label in g['labels']:
-                for negate in [True, False]:
+                for negate in [False]:
                     for op in (F.Or, F.And):
                         new_term = F.Leaf(label)
                         if negate:
@@ -327,7 +311,7 @@ class FeatureOperator:
                         # TODO: This won't work once we start combining cats
                         cat_left = g['pcpi'][formula.val]
                         cat_right = g['pcpi'][label]
-                        comp_tally_label = FeatureOperator.compute_tally_label(masks_comp, g['mask_shape'])
+                        comp_tally_label = cmask.area(masks_comp)
                         if op == F.Or:
                             tuc = g['tally_units_cat_disj'][u, cat_left, cat_right]
                         elif op == F.And:
@@ -352,17 +336,7 @@ class FeatureOperator:
     @staticmethod
     def compute_iou(uidx, uhitidx, masks, tally_unit, tally_label):
         # Compute intersections
-        tally_both = 0
-        # Get masks that are nonzero according to uix
-        masks_i = masks[uidx]
-        if len(masks_i.shape) == 1:
-            # Scalars
-            good_masks = (masks_i == 1)
-            tally_both += uhitidx[good_masks].sum()
-        else:
-            # Pixels
-            both = np.logical_and(masks_i, uhitidx)
-            tally_both += both.sum()
+        tally_both = cmask.area(cmask.merge((masks, uhitidx), intersect=True))
         iou = (tally_both) / (tally_label + tally_unit - tally_both + 1e-10)
         return iou
 
