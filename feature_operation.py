@@ -296,37 +296,39 @@ class FeatureOperator:
         nonzero_iou = Counter({lab: iou for lab, iou in ious.items() if iou > 0})
         # Pick 10 best
         formulas = {F.Leaf(lab): iou for lab, iou in nonzero_iou.most_common(settings.BEAM_SIZE)}
-        new_formulas = {}
-        for formula in formulas:
-            # Consider all labels? That seems crazy...
-            # FIXME: even with bitwise operations this is still very slow
-            for label in g['labels']:
-                for negate in [False]:
-                    for op in (F.Or, F.And):
-                        new_term = F.Leaf(label)
-                        if negate:
-                            new_term = F.Not(new_term)
-                        new_term = op(formula, new_term)
-                        masks_comp = get_mask_global(g['masks'], new_term)
-                        # TODO: This won't work once we start combining cats
-                        cat_left = g['pcpi'][formula.val]
-                        cat_right = g['pcpi'][label]
-                        comp_tally_label = cmask.area(masks_comp)
-                        if op == F.Or:
-                            tuc = g['tally_units_cat_disj'][u, cat_left, cat_right]
-                        elif op == F.And:
-                            tuc = g['tally_units_cat_conj'][u, cat_left, cat_right]
-                        else:
-                            raise RuntimeError
-                        comp_iou = FeatureOperator.compute_iou(
-                            g['all_uidx'][u], g['all_uhitidx'][u], masks_comp, tuc, comp_tally_label
-                        )
+        for i in range(settings.MAX_FORMULA_LENGTH - 1):
+            new_formulas = {}
+            for formula in formulas:
+                # Obvious idea: for positive values...only loop through positive labels (nothing else will give you benefits).
+                # For negative values...loop through everything
+                for label in g['pos_labels'][u]:
+                    for negate in [False]:
+                        for op in (F.Or, F.And):
+                            new_term = F.Leaf(label)
+                            if negate:
+                                new_term = F.Not(new_term)
+                            new_term = op(formula, new_term)
+                            masks_comp = get_mask_global(g['masks'], new_term)
+                            # TODO: This won't work once we start combining cats
+                            cat_left = g['pcpi'][formula.val]
+                            cat_right = g['pcpi'][label]
+                            comp_tally_label = cmask.area(masks_comp)
+                            if op == F.Or:
+                                tuc = g['tally_units_cat_disj'][u, cat_left, cat_right]
+                            elif op == F.And:
+                                tuc = g['tally_units_cat_conj'][u, cat_left, cat_right]
+                            else:
+                                raise RuntimeError
+                            comp_iou = FeatureOperator.compute_iou(
+                                g['all_uidx'][u], g['all_uhitidx'][u], masks_comp, tuc, comp_tally_label
+                            )
 
-                        comp_iou = (settings.FORMULA_COMPLEXITY_PENALTY ** (len(new_term) - 1)) * comp_iou
+                            comp_iou = (settings.FORMULA_COMPLEXITY_PENALTY ** (len(new_term) - 1)) * comp_iou
 
-                        new_formulas[new_term] = comp_iou
-
-        formulas.update(new_formulas)
+                            new_formulas[new_term] = comp_iou
+            formulas.update(new_formulas)
+            # Trim the beam
+            formulas = dict(Counter(formulas).most_common(settings.BEAM_SIZE))
 
         best_lab, best_iou = Counter(formulas).most_common(1)[0]
 
