@@ -27,7 +27,7 @@ def get_mask_global(masks, f):
         return cmask.merge((masks_l, masks_r), intersect=False)
     elif isinstance(f, F.Not):
         masks_val = get_mask_global(masks, f.val)
-        return np.logical_not(masks_val)
+        return cmask.invert(masks_val)
     elif isinstance(f, F.Leaf):
         return masks[f.val]
     else:
