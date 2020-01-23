@@ -301,9 +301,9 @@ class FeatureOperator:
             for formula in formulas:
                 # Obvious idea: for positive values...only loop through positive labels (nothing else will give you benefits).
                 # For negative values...loop through everything
-                for label in g['pos_labels'][u]:
+                for label in nonzero_iou.keys():
                     for negate in [False]:
-                        for op in (F.Or, F.And):
+                        for op in [F.Or]:
                             new_term = F.Leaf(label)
                             if negate:
                                 new_term = F.Not(new_term)
