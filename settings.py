@@ -1,6 +1,6 @@
 ######### global settings  #########
 GPU = True                                  # running on GPU is highly suggested
-TEST_MODE = False                          # turning on the testmode means the code will run on a small dataset.
+INDEX_FILE = 'index_ade20k.csv'                # Which index file to use? If _sm, use test mode
 CLEAN = False                               # set to "True" if you want to clean the temporary large files after generating result
 MODEL = 'resnet18'                          # model arch: resnet18, alexnet, resnet50, densenet161
 DATASET = 'places365'                       # model trained on: places365, imagenet, or cub
@@ -13,10 +13,20 @@ PARALLEL = 16                                # how many process is used for tall
 CATAGORIES = ["object", "part","scene","texture","color"] # concept categories that are chosen to detect: "object", "part", "scene", "material", "texture", "color"
 MASK_SEARCH = True
 FORMULA_COMPLEXITY_PENALTY = 0.99  # How much to downweight formulas by their length
-BEAM_SIZE = 10  # Size of the beam when doing formula search
-MAX_FORMULA_LENGTH = 2  # How many formulas to consider
+BEAM_SIZE = 5  # Size of the beam when doing formula search
+MAX_FORMULA_LENGTH = 2  # Maximum compositional formula length
 FORCE_DISJUNCTION = False   # Only output disjunctive concepts. (Otherwise, disjunctive concepts are only identified if they have the highest IoU relative to other categories)
 OUTPUT_FOLDER = f"result/{'search_' if MASK_SEARCH else ''}pytorch_{MODEL}_{DATASET}_{PROBE_DATASET}{'_disj' if FORCE_DISJUNCTION else ''}"  # result will be stored in this folder
+
+FOLDER_SUFFIX = INDEX_FILE.split('index')[1].split('.csv')
+if not FOLDER_SUFFIX:
+    FOLDER_SUFFIX = ''
+else:
+    FOLDER_SUFFIX = FOLDER_SUFFIX[0]
+
+OUTPUT_FOLDER += FOLDER_SUFFIX
+
+TEST_MODE = INDEX_FILE == 'index_sm.csv'
 
 ########### sub settings ###########
 # In most of the case, you don't have to change them.
@@ -81,11 +91,8 @@ if TEST_MODE:
     BATCH_SIZE = 4
     TALLY_BATCH_SIZE = 2
     TALLY_AHEAD = 1
-    INDEX_FILE = 'index_sm.csv'
-    OUTPUT_FOLDER += "_test"
 else:
     WORKERS = 12
     BATCH_SIZE = 128
     TALLY_BATCH_SIZE = 16
     TALLY_AHEAD = 4
-    INDEX_FILE = 'index.csv'

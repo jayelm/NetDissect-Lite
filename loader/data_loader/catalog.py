@@ -61,7 +61,7 @@ class MaskCatalog:
         else:
             self.mask_shape = (224, 224)
 
-        rle_masks_file = os.path.join(settings.DATA_DIRECTORY, f"rle_masks{'_test' if settings.TEST_MODE else ''}.pkl")
+        rle_masks_file = os.path.join(settings.DATA_DIRECTORY, f"rle_masks{settings.FOLDER_SUFFIX}.pkl")
         if os.path.exists(rle_masks_file):
             with open(rle_masks_file, 'rb') as f:
                 cache = pickle.load(f)

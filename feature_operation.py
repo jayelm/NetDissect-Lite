@@ -162,13 +162,9 @@ class FeatureOperator:
         u, = args
         ufeat = g['features'][:, u]
         uthresh = g['threshold'][u]
-        img2cat = g['img2cat']
         mask_shape = g['mask_shape']
         uidx = np.argwhere(ufeat.max((1, 2)) > uthresh).squeeze(1)
         ufeat = np.array([upsample_features(ufeat[i], mask_shape) for i in uidx])
-        # Can probably use einsum to vectorize this
-        ucats_disj = np.array([np.logical_or.outer(img2cat[i], img2cat[i]) for i in uidx])
-        ucats_conj = np.array([np.logical_and.outer(img2cat[i], img2cat[i]) for i in uidx])
 
         # Create full array
         uhitidx = np.zeros((g['features'].shape[0], *mask_shape), dtype=np.bool)
@@ -178,15 +174,13 @@ class FeatureOperator:
         uhitidx[uidx] = uhit_subset
 
         # Get lengths of those indicees
-        uhits = uhit_subset.sum((1, 2))
-        ucathits_disj = (ucats_disj * uhits[:, np.newaxis, np.newaxis]).sum(0)
-        ucathits_conj = (ucats_conj * uhits[:, np.newaxis, np.newaxis]).sum(0)
+        uhits = uhit_subset.sum()
 
         # Save as compressed
         uhitidx_flat = uhitidx.reshape((uhitidx.shape[0] * uhitidx.shape[1], uhitidx.shape[2]))
         uhit_mask = cmask.encode(np.asfortranarray(uhitidx_flat))
 
-        return u, uidx, uhit_mask, ucathits_disj, ucathits_conj
+        return u, uidx, uhit_mask, uhits
 
     @staticmethod
     def tally_job_search(args):
@@ -222,11 +216,8 @@ class FeatureOperator:
             g['tally_labels'][lab] = cmask.area(masks)
 
         # w/ disjunctions
-        tally_units_cat_disj = np.zeros((units, len(categories), len(categories)), dtype=np.int64)
-        tally_units_cat_conj = np.zeros((units, len(categories), len(categories)), dtype=np.int64)
-        g['tally_units_cat_disj'] = tally_units_cat_disj
-        g['tally_units_cat_conj'] = tally_units_cat_conj
-        records = []
+        tally_units = np.zeros(units, dtype=np.int64)
+        g['tally_units'] = tally_units
 
         # Get unit information (this is expensive (upsampling) and where most of the work is done)
         g['features'] = features
@@ -242,15 +233,14 @@ class FeatureOperator:
         g['all_uidx'] = all_uidx
         g['all_uhitidx'] = all_uhitidx
         with mp.Pool(settings.PARALLEL) as p, tqdm(total=units, desc='Tallying units') as pbar:
-            for (u, uidx, uhitidx, ucathits_disj, ucathits_conj) in p.imap_unordered(FeatureOperator.get_uhits, mp_args):
+            for (u, uidx, uhitidx, uhits) in p.imap_unordered(FeatureOperator.get_uhits, mp_args):
                 all_uidx[u] = uidx
                 all_uhitidx[u] = uhitidx
                 # Get all labels which have at least one true here
                 label_hits = mc.img2label[uidx].sum(0)
                 pos_labels[u] =  np.argwhere(label_hits > 0).squeeze(1)
 
-                tally_units_cat_disj[u] = ucathits_disj
-                tally_units_cat_conj[u] = ucathits_conj
+                tally_units[u] = uhits
                 pbar.update()
 
         # We don't need features anymore
@@ -284,10 +274,9 @@ class FeatureOperator:
         ious = {}
         for lab in g['pos_labels'][u]:
             lab_f = F.Leaf(lab)
-            cat_i = g['pcpi'][lab]
             masks = g['masks'][lab]
             lab_iou = FeatureOperator.compute_iou(
-                g['all_uidx'][u], g['all_uhitidx'][u], masks, g['tally_units_cat_disj'][u, cat_i, cat_i], g['tally_labels'][lab])
+                g['all_uidx'][u], g['all_uhitidx'][u], masks, g['tally_units'][u], g['tally_labels'][lab])
             ious[lab] = lab_iou
             if not settings.FORCE_DISJUNCTION and lab_iou > best_iou:
                 best_iou = lab_iou
@@ -299,8 +288,6 @@ class FeatureOperator:
         for i in range(settings.MAX_FORMULA_LENGTH - 1):
             new_formulas = {}
             for formula in formulas:
-                # Obvious idea: for positive values...only loop through positive labels (nothing else will give you benefits).
-                # For negative values...loop through everything
                 for label in nonzero_iou.keys():
                     for negate in [False]:
                         for op in [F.Or]:
@@ -309,18 +296,9 @@ class FeatureOperator:
                                 new_term = F.Not(new_term)
                             new_term = op(formula, new_term)
                             masks_comp = get_mask_global(g['masks'], new_term)
-                            # TODO: This won't work once we start combining cats
-                            cat_left = g['pcpi'][formula.val]
-                            cat_right = g['pcpi'][label]
                             comp_tally_label = cmask.area(masks_comp)
-                            if op == F.Or:
-                                tuc = g['tally_units_cat_disj'][u, cat_left, cat_right]
-                            elif op == F.And:
-                                tuc = g['tally_units_cat_conj'][u, cat_left, cat_right]
-                            else:
-                                raise RuntimeError
                             comp_iou = FeatureOperator.compute_iou(
-                                g['all_uidx'][u], g['all_uhitidx'][u], masks_comp, tuc, comp_tally_label
+                                g['all_uidx'][u], g['all_uhitidx'][u], masks_comp, g['tally_units'][u], comp_tally_label
                             )
 
                             comp_iou = (settings.FORMULA_COMPLEXITY_PENALTY ** (len(new_term) - 1)) * comp_iou
