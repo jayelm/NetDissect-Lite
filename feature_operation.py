@@ -292,12 +292,12 @@ class FeatureOperator:
                 best_lab = lab_f
 
         nonzero_iou = Counter({lab: iou for lab, iou in ious.items() if iou > 0})
-        # Pick 10 best
+        # Beam search
         formulas = {F.Leaf(lab): iou for lab, iou in nonzero_iou.most_common(settings.BEAM_SIZE)}
         for i in range(settings.MAX_FORMULA_LENGTH - 1):
             new_formulas = {}
             for formula in formulas:
-                for label in nonzero_iou.keys():
+                for label in g['labels']:
                     for op, negate in [(F.Or, False), (F.And, False), (F.And, True)]:
                         new_term = F.Leaf(label)
                         if negate:

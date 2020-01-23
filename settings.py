@@ -9,13 +9,13 @@ QUANTILE = 0.005                            # the threshold used for activation
 SEG_THRESHOLD = 0.04                        # the threshold used for visualization
 SCORE_THRESHOLD = 0.04                      # the threshold used for IoU score (in HTML file)
 TOPN = 10                                   # to show top N image with highest activation for each unit
-PARALLEL = 16                                # how many process is used for tallying (Experiments show that 1 is the fastest)
+PARALLEL = 32                                # how many process is used for tallying (Experiments show that 1 is the fastest)
 CATAGORIES = ["object", "part","scene","texture","color"] # concept categories that are chosen to detect: "object", "part", "scene", "material", "texture", "color"
 UNIT_RANGE = None  # Give range if you want to use only some units
 MASK_SEARCH = True
 FORMULA_COMPLEXITY_PENALTY = 0.99  # How much to downweight formulas by their length
 BEAM_SIZE = 5  # Size of the beam when doing formula search
-MAX_FORMULA_LENGTH = 2  # Maximum compositional formula length
+MAX_FORMULA_LENGTH = 3  # Maximum compositional formula length
 FORCE_DISJUNCTION = False   # Only output disjunctive concepts. (Otherwise, disjunctive concepts are only identified if they have the highest IoU relative to other categories)
 OUTPUT_FOLDER = f"result/{'search_' if MASK_SEARCH else ''}pytorch_{MODEL}_{DATASET}_{PROBE_DATASET}{'_disj' if FORCE_DISJUNCTION else ''}"  # result will be stored in this folder
 
