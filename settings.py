@@ -11,6 +11,7 @@ SCORE_THRESHOLD = 0.04                      # the threshold used for IoU score (
 TOPN = 10                                   # to show top N image with highest activation for each unit
 PARALLEL = 16                                # how many process is used for tallying (Experiments show that 1 is the fastest)
 CATAGORIES = ["object", "part","scene","texture","color"] # concept categories that are chosen to detect: "object", "part", "scene", "material", "texture", "color"
+UNIT_RANGE = None  # Give range if you want to use only some units
 MASK_SEARCH = True
 FORMULA_COMPLEXITY_PENALTY = 0.99  # How much to downweight formulas by their length
 BEAM_SIZE = 10  # Size of the beam when doing formula search

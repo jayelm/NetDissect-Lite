@@ -257,8 +257,18 @@ class FeatureOperator:
         del g['features']
 
         records = []
-        mp_args = ((u, ) for u in range(units))
-        with mp.Pool(settings.PARALLEL) as p, tqdm(total=units, desc='IoU - primitives') as pbar:
+        if settings.UNIT_RANGE is None:
+            mp_args = ((u, ) for u in range(units))
+            nu = units
+            tally_dfname = 'tally.csv'
+        else:
+            # Only use a subset of units
+            mp_args = ((u, ) for u in settings.UNIT_RANGE)
+            nu = len(settings.UNIT_RANGE)
+            tally_dfname = f"tally_{min(settings.UNIT_RANGE)}_{max(settings.UNIT_RANGE)}.csv"
+        tally_dfname = os.path.join(settings.OUTPUT_FOLDER, tally_dfname)
+
+        with mp.Pool(settings.PARALLEL) as p, tqdm(total=nu, desc='IoU - primitives') as pbar:
             for (u, best_lab, best_iou) in p.imap_unordered(FeatureOperator.compute_best_iou, mp_args):
                 best_name = best_lab.to_str(lambda name: data.name(None, name))
                 best_cat = best_lab.to_str(lambda name: categories[pcats[name]])
@@ -272,8 +282,7 @@ class FeatureOperator:
                 pbar.update()
 
                 tally_df = pd.DataFrame(records)
-                tally_df.to_csv(os.path.join(settings.OUTPUT_FOLDER, 'tally.csv'),
-                                index=False)
+                tally_df.to_csv(tally_dfname, index=False)
         return records
 
     @staticmethod
@@ -302,30 +311,33 @@ class FeatureOperator:
                 # Obvious idea: for positive values...only loop through positive labels (nothing else will give you benefits).
                 # For negative values...loop through everything
                 for label in nonzero_iou.keys():
-                    for negate in [False]:
-                        for op in [F.Or]:
-                            new_term = F.Leaf(label)
-                            if negate:
-                                new_term = F.Not(new_term)
-                            new_term = op(formula, new_term)
-                            masks_comp = get_mask_global(g['masks'], new_term)
-                            # TODO: This won't work once we start combining cats
-                            cat_left = g['pcpi'][formula.val]
-                            cat_right = g['pcpi'][label]
-                            comp_tally_label = cmask.area(masks_comp)
-                            if op == F.Or:
-                                tuc = g['tally_units_cat_disj'][u, cat_left, cat_right]
-                            elif op == F.And:
-                                tuc = g['tally_units_cat_conj'][u, cat_left, cat_right]
-                            else:
-                                raise RuntimeError
-                            comp_iou = FeatureOperator.compute_iou(
-                                g['all_uidx'][u], g['all_uhitidx'][u], masks_comp, tuc, comp_tally_label
-                            )
+                    for op, negate in [(F.Or, False), (F.And, True), (F.And, False)]:
+                        new_term = F.Leaf(label)
+                        if negate:
+                            new_term = F.Not(new_term)
+                        new_term = op(formula, new_term)
+                        masks_comp = get_mask_global(g['masks'], new_term)
+                        # Just pick one for now (FIXME)
+                        cat_left = 0
+                        for val in formula.get_vals():
+                            if g['pcpi'][val] > cat_left:
+                                cat_left = g['pcpi'][val]
+                        #  cat_left = g['pcpi'][formula.get_vals()[0]]
+                        cat_right = g['pcpi'][label]
+                        comp_tally_label = cmask.area(masks_comp)
+                        if op == F.Or:
+                            tuc = g['tally_units_cat_disj'][u, cat_left, cat_right]
+                        elif op == F.And:
+                            tuc = g['tally_units_cat_conj'][u, cat_left, cat_right]
+                        else:
+                            raise RuntimeError
+                        comp_iou = FeatureOperator.compute_iou(
+                            g['all_uidx'][u], g['all_uhitidx'][u], masks_comp, tuc, comp_tally_label
+                        )
 
-                            comp_iou = (settings.FORMULA_COMPLEXITY_PENALTY ** (len(new_term) - 1)) * comp_iou
+                        comp_iou = (settings.FORMULA_COMPLEXITY_PENALTY ** (len(new_term) - 1)) * comp_iou
 
-                            new_formulas[new_term] = comp_iou
+                        new_formulas[new_term] = comp_iou
             formulas.update(new_formulas)
             # Trim the beam
             formulas = dict(Counter(formulas).most_common(settings.BEAM_SIZE))
