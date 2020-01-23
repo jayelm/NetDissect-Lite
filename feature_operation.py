@@ -271,9 +271,9 @@ class FeatureOperator:
                 records.append(r)
                 pbar.update()
 
-        tally_df = pd.DataFrame(records)
-        tally_df.to_csv(os.path.join(settings.OUTPUT_FOLDER, 'tally.csv'),
-                        index=False)
+                tally_df = pd.DataFrame(records)
+                tally_df.to_csv(os.path.join(settings.OUTPUT_FOLDER, 'tally.csv'),
+                                index=False)
         return records
 
     @staticmethod
