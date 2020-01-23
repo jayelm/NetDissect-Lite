@@ -12,6 +12,9 @@ import pickle
 from pycocotools import mask as cmask
 
 
+ONES = cmask.encode(np.ones((112, 112), dtype=np.bool, order='F'))
+
+
 def get_mask_global(masks, f):
     """
     Serializable/global version of get_mask for multiprocessing
@@ -20,14 +23,81 @@ def get_mask_global(masks, f):
     if isinstance(f, F.And):
         masks_l = get_mask_global(masks, f.left)
         masks_r = get_mask_global(masks, f.right)
-        return cmask.merge((masks_l, masks_r), intersect=True)
+        l_nd = isinstance(masks_l, np.ndarray)
+        r_nd = isinstance(masks_r, np.ndarray)
+        if l_nd and r_nd:
+            return np.logical_and(masks_l, masks_r)
+        elif l_nd:
+            res = []
+            for ml, mr in zip(masks_l, masks_r):
+                if not ml:
+                    # Left is 0 everywhere - therefore 0 conj
+                    res.append(None)
+                else:
+                    res.append(mr)
+            return res
+        elif r_nd:
+            res = []
+            for ml, mr in zip(masks_l, masks_r):
+                if not mr:
+                    res.append(None)
+                else:
+                    res.append(ml)
+            return res
+        else:
+            res = []
+            for ml, mr in zip(masks_l, masks_r):
+                if ml is None or mr is None:
+                    res.append(None)
+                else:
+                    res.append(cmask.merge((ml, mr), intersect=True))
+            return res
     elif isinstance(f, F.Or):
         masks_l = get_mask_global(masks, f.left)
         masks_r = get_mask_global(masks, f.right)
-        return cmask.merge((masks_l, masks_r), intersect=False)
+        l_nd = isinstance(masks_l, np.ndarray)
+        r_nd = isinstance(masks_r, np.ndarray)
+        if l_nd and r_nd:
+            return np.logical_or(masks_l, masks_r)
+        elif l_nd:
+            res = []
+            for ml, mr in zip(masks_l, masks_r):
+                if ml:
+                    # Left is 1 everywhere - therefore 1 conj
+                    res.append(ONES)
+                else:
+                    res.append(mr)
+            return res
+        elif r_nd:
+            res = []
+            for ml, mr in zip(masks_l, masks_r):
+                if mr:
+                    res.append(ONES)
+                else:
+                    res.append(ml)
+            return res
+        else:
+            res = []
+            for ml, mr in zip(masks_l, masks_r):
+                if ml is None or mr is None:
+                    res.append(None)
+                else:
+                    res.append(cmask.merge((ml, mr), intersect=False))
+            return res
     elif isinstance(f, F.Not):
         masks_val = get_mask_global(masks, f.val)
-        return cmask.invert(masks_val)
+        if isinstance(masks_val, np.ndarray):
+            return np.logical_not(masks_val)
+        else:
+            new_masks_val = []
+            for m in masks_val:
+                if m is None:
+                    # TODO: Use TRUE here for efficiency?
+                    new_masks_val.append(ONES)
+                else:
+                    inv = cmask.invert(m)
+                    new_masks_val.append(inv)
+            return new_masks_val
     elif isinstance(f, F.Leaf):
         return masks[f.val]
     else:
@@ -115,22 +185,28 @@ class MaskCatalog:
                                     bin_mask = np.zeros_like(label_group[0])
                                     for lg in label_group:
                                         bin_mask = np.logical_or(bin_mask, (lg == feat))
-                                if self.masks[feat].ndim == 1:
+                                if isinstance(self.masks[feat], np.ndarray):
                                     # Sometimes annotation is both pixel and scalar level. Retroactively fix this
                                     print(f"Coercing {feat} to pixel level")
-                                    self.masks[feat] = np.tile(self.masks[feat][:, np.newaxis, np.newaxis], (1, *self.mask_shape))
-                                self.masks[feat][img_index] = np.logical_or(self.masks[feat][img_index], bin_mask)
+                                    self.masks[feat] = [(None if i == 0 else np.ones(*self.mask_shape, dtype=np.bool)) for i in self.masks[feat]]
+                                if self.masks[feat][img_index] is None:
+                                    self.masks[feat][img_index] = bin_mask
+                                else:
+                                    self.masks[feat][img_index] = np.logical_or(self.masks[feat][img_index], bin_mask)
                                 self.img2label[img_index, feat] = True
                                 self.img2cat[img_index][cat_i] = True
 
-            # Compact masks
+            # Convert pixel-level masks to RLE encoding
             for feat, mask in tqdm(self.masks.items(), total=len(self.masks), desc='RLE'):
-                if mask.ndim == 1:
-                    mask = mask[:, np.newaxis, np.newaxis]
-                    mask = np.broadcast_to(mask, (mask.shape[0], *self.mask_shape))
-                mask_flat = mask.reshape((mask.shape[0] * mask.shape[1], mask.shape[2]))
-                mask_flat = np.asfortranarray(mask_flat)
-                self.masks[feat] = cmask.encode(mask_flat)
+                if isinstance(mask, list):
+                    new_masks = []
+                    for m in mask:
+                        if m is None:
+                            new_masks.append(None)
+                        else:
+                            m = np.asfortranarray(m)
+                            new_masks.append(cmask.encode(m))
+                    self.masks[feat] = new_masks
             with open(rle_masks_file, 'wb') as f:
                 pickle.dump({
                     'masks': self.masks,
@@ -153,6 +229,6 @@ class MaskCatalog:
         if mask_type == 'scalar':
             self.masks[i] = np.zeros(self.data_size, dtype=np.bool)
         elif mask_type == 'pixel':
-            self.masks[i] = np.zeros((self.data_size, *self.mask_shape), dtype=np.bool)
+            self.masks[i] = [None for _ in range(self.data_size)]
         else:
             raise ValueError(f"Unknown mask type {mask_type}")
