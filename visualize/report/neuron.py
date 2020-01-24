@@ -119,7 +119,7 @@ def generate_html_summary(ds, layer, mc, maxfeature=None, features=None, thresho
     for i, record in enumerate(
             sorted(rendered_order, key=lambda record: -float(record['score']))):
         record['score-order'] = i
-    for label_order, record in enumerate(tqdm(rendered_order[:5], desc='Images')):
+    for label_order, record in enumerate(tqdm(rendered_order, desc='Images')):
         unit = int(record['unit']) - 1 # zero-based unit indexing
         imfn = 'image/%s%s-%04d.jpg' % (
                 expdir.fn_safe(layer), gridname, unit)
