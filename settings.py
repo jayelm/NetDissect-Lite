@@ -3,7 +3,7 @@ GPU = True                                  # running on GPU is highly suggested
 INDEX_FILE = 'index_ade20k.csv'                # Which index file to use? If _sm, use test mode
 CLEAN = False                               # set to "True" if you want to clean the temporary large files after generating result
 MODEL = 'resnet18'                          # model arch: resnet18, alexnet, resnet50, densenet161
-DATASET = 'places365'                       # model trained on: places365, imagenet, or cub
+DATASET = 'places365'                       # model trained on: places365, imagenet, or cub. If None,use untrained resnet (random baseline)
 PROBE_DATASET = 'broden'                    # which dataset to probe with (broden, cub, or gqa)
 QUANTILE = 0.005                            # the threshold used for activation
 SEG_THRESHOLD = 0.04                        # the threshold used for visualization
@@ -40,7 +40,7 @@ assert LEVEL in {'neuron', 'representation'}
 # IMG_SIZE: image size, alexnet use 227x227
 # NUM_CLASSES: how many labels in final prediction
 # FEATURE_NAMES: the array of layer where features will be extracted
-# MODEL_FILE: the model file to be probed, "None" means the pretrained model in torchvision
+# MODEL_FILE: the model file to be probed, "None" means the pretrained model in torchvision; <UNTRAINED> uses untrained torchvision
 # MODEL_PARALLEL: some model is trained in multi-GPU, so there is another way to load them.
 # WORKERS: how many workers are fetching images
 # BATCH_SIZE: batch size used in feature extraction
@@ -81,6 +81,9 @@ if MODEL == 'resnet18':
     elif DATASET == 'cub':
         MODEL_FILE = 'zoo/trained/resnet18_cub_finetune/model_best.pth'
         MODEL_PARALLEL = False
+    elif DATASET is None:
+        MODEL_FILE = '<UNTRAINED>'
+        MODEEL_PARALLEL = False
 elif MODEL == 'densenet161':
     FEATURE_NAMES = ['features']
     if DATASET == 'places365':
