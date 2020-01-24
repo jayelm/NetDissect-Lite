@@ -37,14 +37,15 @@ for layer, layer_features, layer_maxfeature in ranger:
         thresholds = fo.quantile_threshold(layer_features, savepath="quantile.npy")
 
         #### STEP 3: calculating IoU scores
-        tally_result = fo.tally(layer_features, thresholds, savepath="tally.csv")
+        tally_result, mc = fo.tally(layer_features, thresholds, savepath="tally.csv")
 
         #### STEP 4: generating results
-        vneuron.generate_html_summary(fo.data, layer,
+        vneuron.generate_html_summary(fo.data, layer, mc,
                                       tally_result=tally_result,
                                       maxfeature=layer_maxfeature,
                                       features=layer_features,
-                                      thresholds=thresholds)
+                                      thresholds=thresholds,
+                                      force=True)
     else:
         # Go through each input. Find inputs nearest to each other according to some threshold (can do this unsupervised by doing w/in sum squares)
         # Average responses over image

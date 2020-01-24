@@ -184,7 +184,7 @@ class FeatureOperator:
 
     @staticmethod
     def tally_job_search(args):
-        features, data, threshold, tally_labels, tally_units, tally_units_cat, tally_both, start, end = args
+        features, data, threshold, tally_labels, tally_units, tally_units_cat, tally_both, start, end, savepath, csvpath = args
 
         categories = data.category_names()
         pcpi = data.primary_categories_per_index()
@@ -203,6 +203,11 @@ class FeatureOperator:
                                            end=end)
         # Cache all masks so they can be looked up
         mc = MaskCatalog(pf)
+
+        if savepath and os.path.exists(csvpath):
+            print(f"Returning cached {csvpath}")
+            return load_csv(csvpath), mc
+
         g['mc'] = mc
         g['labels'] = mc.labels
         g['masks'] = mc.masks
@@ -435,8 +440,6 @@ class FeatureOperator:
 
     def tally(self, features, threshold, savepath=''):
         csvpath = os.path.join(settings.OUTPUT_FOLDER, savepath)
-        if savepath and os.path.exists(csvpath):
-            return load_csv(csvpath)
 
         units = features.shape[1]
         labels = len(self.data.label)
@@ -461,7 +464,7 @@ class FeatureOperator:
             threadpool = pool.ThreadPool(processes=settings.PARALLEL)
             threadpool.map(FeatureOperator.tally_job, params)
         else:
-            maybe_rets = FeatureOperator.tally_job((features, self.data, threshold, tally_labels, tally_units, tally_units_cat, tally_both, 0, self.data.size()))
+            maybe_rets = FeatureOperator.tally_job((features, self.data, threshold, tally_labels, tally_units, tally_units_cat, tally_both, 0, self.data.size(), savepath, csvpath))
 
         if settings.MASK_SEARCH:
             return maybe_rets

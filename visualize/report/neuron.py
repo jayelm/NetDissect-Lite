@@ -7,16 +7,50 @@ import numpy
 from imageio import imread, imwrite
 import visualize.expdir as expdir
 import visualize.bargraph as bargraph
+from visualize.report.image import create_tiled_image
 import settings
 import numpy as np
 from PIL import Image
 import warnings
+from tqdm import tqdm
+import loader.data_loader.formula as F
+
+
+import pycocotools.mask as cmask
 # unit,category,label,score
 
 replacements = [(re.compile(r[0]), r[1]) for r in [
     (r'-[sc]$', ''),
     (r'_', ' '),
     ]]
+
+
+MG = .5
+BLUE_TINT = np.array([-MG * 255, -MG * 255, MG * 255])
+RED_TINT = np.array([MG * 255, -MG * 255, -MG * 255])
+
+def add_colored_masks(img, feat_mask, unit_mask):
+    img = img.astype(np.int64)
+
+    nowhere_else = np.logical_not(np.logical_or(feat_mask, unit_mask)).astype(np.int64)
+    nowhere_else = (nowhere_else * 0.8 * 255).astype(np.int64)
+    nowhere_else = nowhere_else[:, :, np.newaxis]
+
+    feat_mask = feat_mask[:, :, np.newaxis] * BLUE_TINT
+    feat_mask = np.round(feat_mask).astype(np.int64)
+
+    img += feat_mask
+
+    unit_mask = unit_mask[:, :, np.newaxis] * RED_TINT
+    unit_mask = np.round(unit_mask).astype(np.int64)
+
+    img += unit_mask
+
+    img -= nowhere_else
+
+    img = np.clip(img, 0, 255).astype(np.uint8)
+    return img
+
 
 def fix(s):
     for pattern, subst in replacements:
@@ -25,7 +59,7 @@ def fix(s):
 
 
 
-def generate_html_summary(ds, layer, maxfeature=None, features=None, thresholds=None,
+def generate_html_summary(ds, layer, mc, maxfeature=None, features=None, thresholds=None,
         imsize=None, imscale=72, tally_result=None,
         gridwidth=None, gap=3, limit=None, force=False, verbose=False):
     ed = expdir.ExperimentDirectory(settings.OUTPUT_FOLDER)
@@ -85,20 +119,16 @@ def generate_html_summary(ds, layer, maxfeature=None, features=None, thresholds=
     for i, record in enumerate(
             sorted(rendered_order, key=lambda record: -float(record['score']))):
         record['score-order'] = i
-    for label_order, record in enumerate(rendered_order):
+    for label_order, record in enumerate(tqdm(rendered_order[:5], desc='Images')):
         unit = int(record['unit']) - 1 # zero-based unit indexing
         imfn = 'image/%s%s-%04d.jpg' % (
                 expdir.fn_safe(layer), gridname, unit)
         if force or not ed.has('html/%s' % imfn):
             if verbose:
                 print('Visualizing %s unit %d' % (layer, unit))
-            # Generate the top-patch image
-            tiled = numpy.full(
-                ((imsize + gap) * gridheight - gap,
-                 (imsize + gap) * gridwidth - gap, 3), 255, dtype='uint8')
-            for x, index in enumerate(top[unit]):
-                row = x // gridwidth
-                col = x % gridwidth
+            # ==== ROW 1: TOP PATCH IMAGES ====
+            img_ann = []
+            for index in top[unit]:
                 if settings.PROBE_DATASET == 'cub':
                     # Images can be different in CUB - stick with Image.open for more reliable
                     # operation
@@ -114,9 +144,43 @@ def generate_html_summary(ds, layer, maxfeature=None, features=None, thresholds=
                     vis = vis.round().astype(np.uint8)
                 if vis.shape[:2] != (imsize, imsize):
                     vis = np.array(Image.fromarray(vis).resize((imsize, imsize), resample=Image.BILINEAR))
-                tiled[row*(imsize+gap):row*(imsize+gap)+imsize,
-                      col*(imsize+gap):col*(imsize+gap)+imsize,:] = vis
+                img_ann.append((vis, None, None))
+            tiled = create_tiled_image(img_ann, gridheight, gridwidth, ds, imsize=imsize, gap=gap)
             imwrite(ed.filename('html/' + imfn), tiled)
+
+            # ==== ROW 2 - other images that match the mask ====
+            lab_f = F.parse(record['label'], reverse_namer=ds.rev_name)
+            labs_enc = mc.get_mask(lab_f)
+            labs = cmask.decode(labs_enc)
+            # Unflatten
+            labs = labs.reshape((features.shape[0], *mc.mask_shape))
+            # Sum up
+            lab_tallies = labs.sum((1, 2))
+            # Get biggest tallies
+            idx = np.argsort(lab_tallies)[::-1][:settings.TOPN]
+            mask_imgs_ann = []
+            for i in idx:
+                fname = ds.filename(i)
+                img = np.array(Image.open(fname))
+                # FEAT MASK: blue
+                feat_mask = np.array(Image.fromarray(labs[i]).resize(img.shape[:2]))
+
+                # UNIT MASK: red
+                unit_mask = np.array(Image.fromarray(features[i][unit]).resize(img.shape[:2], resample=Image.BILINEAR))
+                unit_mask = unit_mask > thresholds[unit]
+
+                intersection = np.logical_and(feat_mask, unit_mask).sum()
+                union = np.logical_or(feat_mask, unit_mask).sum()
+                iou = intersection / (union + 1e-10)
+                lbl = f"{iou:.3f}"
+
+                img_masked = add_colored_masks(img, feat_mask, unit_mask)
+
+                mask_imgs_ann.append((img_masked, lbl, None))
+            row2fn = 'image/%s%s-%04d-maskimg.jpg' % (expdir.fn_safe(layer), gridname, i)
+            tiled = create_tiled_image(mask_imgs_ann, gridheight, gridwidth, ds, imsize=imsize, gap=gap)
+            imwrite(ed.filename('html/' + row2fn), tiled)
+
         # Generate the wrapper HTML
         graytext = ' lowscore' if float(record['score']) < settings.SCORE_THRESHOLD else ''
         html.append('><div class="unit%s" data-order="%d %d %d">' %
@@ -131,6 +195,14 @@ def generate_html_summary(ds, layer, maxfeature=None, features=None, thresholds=
         html.append(
             '<div class="thumbcrop"><img src="%s" height="%d"></div>' %
             (imfn, imscale))
+        html.append('<p class="midrule">Other examples of feature (<span class="bluespan">feature mask</span> <span class="redspan">unit mask</span>)</p>')
+        html.append(
+            '<div class="thumbcrop"><img src="%s" height="%d"></div>' %
+            (row2fn, imscale))
+        #  html.append(f'<p class="midrule">Examples of {neglab}</p>')
+        #  html.append(
+            #  '<div class="thumbcrop"><img src="%s" height="%d"></div>' %
+            #  (row3fn, imscale))
         html.append('</div') # Leave off > to eat spaces
     html.append('></div>')
     html.extend([html_suffix]);
@@ -174,6 +246,16 @@ html_prefix = '''
   overflow: hidden;
   width: 288px;
   height: 72px;
+}
+.bluespan {
+    color: blue;
+}
+.redspan {
+    color: red;
+}
+.midrule {
+    margin-top: 1em;
+    margin-bottom: 0.25em;
 }
 .unit {
   display: inline-block;
