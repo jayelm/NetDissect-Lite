@@ -21,7 +21,6 @@ BEAM_SIZE = 5  # Size of the beam when doing formula search
 MAX_FORMULA_LENGTH = 3  # Maximum compositional formula length
 FORCE_DISJUNCTION = False   # Only output disjunctive concepts. (Otherwise, disjunctive concepts are only identified if they have the highest IoU relative to other categories)
 OUTPUT_FOLDER = f"result/{'search_' if MASK_SEARCH else ''}pytorch_{MODEL}_{DATASET}_{PROBE_DATASET}{'_disj' if FORCE_DISJUNCTION else ''}{'_representation' if LEVEL == 'representation' else ''}"  # result will be stored in this folder
-print(OUTPUT_FOLDER)
 
 FOLDER_SUFFIX = INDEX_FILE.split('index')[1].split('.csv')
 if not FOLDER_SUFFIX:
@@ -30,6 +29,7 @@ else:
     FOLDER_SUFFIX = FOLDER_SUFFIX[0]
 
 OUTPUT_FOLDER += FOLDER_SUFFIX
+print(OUTPUT_FOLDER)
 
 TEST_MODE = INDEX_FILE == 'index_sm.csv'
 
