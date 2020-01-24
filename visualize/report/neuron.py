@@ -144,6 +144,7 @@ def generate_html_summary(ds, layer, mc, maxfeature=None, features=None, thresho
                     vis = vis.round().astype(np.uint8)
                 if vis.shape[:2] != (imsize, imsize):
                     vis = np.array(Image.fromarray(vis).resize((imsize, imsize), resample=Image.BILINEAR))
+                vis = np.round(vis).astype(np.uint8)
                 img_ann.append((vis, None, None))
             tiled = create_tiled_image(img_ann, gridheight, gridwidth, ds, imsize=imsize, gap=gap)
             imwrite(ed.filename('html/' + imfn), tiled)
@@ -177,9 +178,46 @@ def generate_html_summary(ds, layer, mc, maxfeature=None, features=None, thresho
                 img_masked = add_colored_masks(img, feat_mask, unit_mask)
 
                 mask_imgs_ann.append((img_masked, lbl, None))
-            row2fn = 'image/%s%s-%04d-maskimg.jpg' % (expdir.fn_safe(layer), gridname, i)
+            row2fn = 'image/%s%s-%04d-maskimg.jpg' % (expdir.fn_safe(layer), gridname, unit)
             tiled = create_tiled_image(mask_imgs_ann, gridheight, gridwidth, ds, imsize=imsize, gap=gap)
             imwrite(ed.filename('html/' + row2fn), tiled)
+
+            # ==== ROW 3 - images thatt match slightly neegative masks ====
+            neglab_f = F.minor_negate(lab_f, hard=True)
+            neglab = neglab_f.to_str(lambda name: ds.name(None, name))
+            labs_enc = mc.get_mask(neglab_f)
+            labs = cmask.decode(labs_enc)
+            # Unflatten
+            labs = labs.reshape((features.shape[0], *mc.mask_shape))
+            # Sum up
+            lab_tallies = labs.sum((1, 2))
+            # Get biggest tallies
+            idx = np.argsort(lab_tallies)[::-1][:settings.TOPN]
+
+            row3fn = 'image/%s%s-%04d-maskimg-neg1.jpg' % (expdir.fn_safe(layer), gridname, unit)
+            mask_imgs_ann = []
+            for i in idx:
+                fname = ds.filename(i)
+                img = np.array(Image.open(fname))
+                # FEAT MASK: blue
+                feat_mask = np.array(Image.fromarray(labs[i]).resize(img.shape[:2]))
+
+                # UNIT MASK: red
+                unit_mask = np.array(Image.fromarray(features[i][unit]).resize(img.shape[:2], resample=Image.BILINEAR))
+                unit_mask = unit_mask > thresholds[unit]
+
+                intersection = np.logical_and(feat_mask, unit_mask).sum()
+                union = np.logical_or(feat_mask, unit_mask).sum()
+                iou = intersection / (union + 1e-10)
+                lbl = f"{iou:.3f}"
+
+                img_masked = add_colored_masks(img, feat_mask, unit_mask)
+
+                mask_imgs_ann.append((img_masked, lbl, None))
+
+            tiled = create_tiled_image(mask_imgs_ann, gridheight, gridwidth, ds, imsize=imsize, gap=gap)
+            imwrite(ed.filename('html/' + row3fn), tiled)
+
 
         # Generate the wrapper HTML
         graytext = ' lowscore' if float(record['score']) < settings.SCORE_THRESHOLD else ''
@@ -199,10 +237,10 @@ def generate_html_summary(ds, layer, mc, maxfeature=None, features=None, thresho
         html.append(
             '<div class="thumbcrop"><img src="%s" height="%d"></div>' %
             (row2fn, imscale))
-        #  html.append(f'<p class="midrule">Examples of {neglab}</p>')
-        #  html.append(
-            #  '<div class="thumbcrop"><img src="%s" height="%d"></div>' %
-            #  (row3fn, imscale))
+        html.append(f'<p class="midrule">Examples of {neglab}</p>')
+        html.append(
+            '<div class="thumbcrop"><img src="%s" height="%d"></div>' %
+            (row3fn, imscale))
         html.append('</div') # Leave off > to eat spaces
     html.append('></div>')
     html.extend([html_suffix]);

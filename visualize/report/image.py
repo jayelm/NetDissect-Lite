@@ -20,14 +20,15 @@ def create_tiled_image(imgs, gridheight, gridwidth, ds, imsize=112, gap=3):
                 vis = Image.fromarray(imread(ds.filename(img)))
             if vis.size[:2] != (imsize, imsize):
                 vis = vis.resize((imsize, imsize), resample=Image.BILINEAR)
-            if mark is not None:
-                vis = ImageOps.expand(vis, border=10, fill=mark).resize((imsize, imsize), resample=Image.BILINEAR)
-            if label is not None:
-                draw = ImageDraw.Draw(vis)
-                draw.text((0, 0), label)
-            vis = np.array(vis)
         else:
-            vis = img
+            vis = Image.fromarray(img)
+
+        if mark is not None:
+            vis = ImageOps.expand(vis, border=10, fill=mark).resize((imsize, imsize), resample=Image.BILINEAR)
+        if label is not None:
+            draw = ImageDraw.Draw(vis)
+            draw.text((0, 0), label)
+        vis = np.array(vis)
         tiled[row*(imsize+gap):row*(imsize+gap)+imsize,
               col*(imsize+gap):col*(imsize+gap)+imsize,:] = vis
     return tiled
