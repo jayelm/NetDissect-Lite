@@ -182,11 +182,11 @@ def generate_html_summary(ds, layer, records, dist, mc, thresh,
         html.append(
             '<div class="thumbcrop"><img src="%s" height="%d"></div>' %
             (imfn, imscale))
-        html.append('<h3>Other examples of feature</h3>')
+        html.append('<p>Other examples of feature</p>')
         html.append(
             '<div class="thumbcrop"><img src="%s" height="%d"></div>' %
             (row2fn, imscale))
-        html.append('<h3>Examples of (negative)</h3>')
+        html.append('<p>Examples of (negative)</p>')
         html.append('</div') # Leave off > to eat spaces
     html.append('></div>')
     html.extend([html_suffix]);
