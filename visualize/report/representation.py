@@ -7,7 +7,7 @@ import numpy
 from imageio import imread, imwrite
 import visualize.expdir as expdir
 import visualize.bargraph as bargraph
-from visualize.report.image import create_tiled_image
+from visualize.report.image import create_tiled_image, score_histogram, pairwise_histogram
 import settings
 import numpy as np
 from PIL import Image, ImageDraw, ImageOps
@@ -15,7 +15,6 @@ import warnings
 import loader.data_loader.formula as F
 from collections import Counter
 from scipy.stats import percentileofscore
-import seaborn as sns
 import os
 
 from repr_operation import ReprOperator as RO, square_to_condensed
@@ -31,15 +30,6 @@ def fix(s):
     for pattern, subst in replacements:
         s = re.sub(pattern, subst, s)
     return s
-
-
-def histogram(dist, fname, n=10000):
-    # Take a sample of the distances
-    samp_n = np.random.randint(len(dist), size=n)
-    samp = dist[samp_n]
-    plt = sns.distplot(samp)
-    ax = plt.get_figure()
-    ax.savefig(fname)
 
 
 def generate_html_summary(ds, layer, records, dist, mc, thresh,
@@ -58,13 +48,27 @@ def generate_html_summary(ds, layer, records, dist, mc, thresh,
     #  top = np.argsort(maxfeature, 0)[:-1 - settings.TOPN:-1, :].transpose()
     ed.ensure_dir('html','image')
     html = [html_prefix]
+    html.append(f'<h3>{settings.OUTPUT_FOLDER}</h3>')
     barfn = f'image/{expdir.fn_safe(layer)}-threshold.svg'
-    histogram(dist, os.path.join(ed.directory, 'html', barfn))
+    pairwise_histogram(dist, os.path.join(ed.directory, 'html', barfn))
     html.extend([
         '<div class="histogram">',
         f'<p>Threshold: {thresh:.3f} (top {settings.REPR_ALPHA * 100}%)</p>',
         '<img class="img-fluid" src="%s" title="Summary of %s %s">' % (
             barfn, ed.basename(), layer),
+        '</div>'
+        ])
+    jacfn = f'image/{expdir.fn_safe(layer)}-jac.svg'
+    jacs = [r['score'] for r in records]
+    jac_mean = np.mean(jacs)
+    jac_std = np.std(jacs)
+    jac_title = f'Jaccard distances ({jac_mean:.3f} +/- {jac_std:.3f})'
+    score_histogram(records, os.path.join(ed.directory, 'html', jacfn),
+                    title=jac_title)
+    html.extend([
+        '<div class="histogram">',
+        '<img class="img-fluid" src="%s" title="Summary of %s %s">' % (
+            jacfn, ed.basename(), layer),
         '</div>'
         ])
     rendered_order = records
