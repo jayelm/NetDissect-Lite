@@ -75,7 +75,7 @@ def generate_html_summary(ds, layer, mc, maxfeature=None, features=None, thresho
     top = np.argsort(maxfeature, 0)[:-1 - settings.TOPN:-1, :].transpose()
     ed.ensure_dir('html','image')
     html = [html_prefix]
-    html.append(f'<h3>settings.OUTPUT_FOLDER</h3>')
+    html.append(f'<h3>{settings.OUTPUT_FOLDER}</h3>')
     rendered_order = []
     barfn = 'image/%s-bargraph.svg' % (
             expdir.fn_safe(layer))
