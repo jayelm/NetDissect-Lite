@@ -145,7 +145,7 @@ def generate_html_summary(ds, layer, records, dist, mc, thresh,
                     continue
                 lab = f"{-sim:.2f}"
                 mark = (0, 255, 0) if -sim < thresh else (255, 0, 0)
-                imgs.append((index, lab, None))
+                imgs.append((index, lab, mark))
 
             tiled = create_tiled_image(imgs, gridheight, gridwidth, ds, imsize=imsize, gap=gap)
             imwrite(ed.filename('html/' + imfn), tiled)
