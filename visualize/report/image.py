@@ -4,6 +4,7 @@ from PIL import Image, ImageDraw, ImageOps
 from imageio import imread
 import seaborn as sns
 import matplotlib.pyplot as plt
+plt.switch_backend('agg')
 
 
 def pairwise_histogram(dist, fname, n=10000):
@@ -18,7 +19,7 @@ def pairwise_histogram(dist, fname, n=10000):
 
 def score_histogram(records, fname, title='IoUs'):
     plt.figure()
-    scores = [r['score'] for r in records]
+    scores = [float(r['score']) for r in records]
     sns.distplot(scores).set_title(title)
     plt.savefig(fname)
 

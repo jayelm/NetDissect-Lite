@@ -7,13 +7,14 @@ import numpy
 from imageio import imread, imwrite
 import visualize.expdir as expdir
 import visualize.bargraph as bargraph
-from visualize.report.image import create_tiled_image
+from visualize.report.image import create_tiled_image, score_histogram
 import settings
 import numpy as np
 from PIL import Image
 import warnings
 from tqdm import tqdm
 import loader.data_loader.formula as F
+import os
 
 
 import pycocotools.mask as cmask
@@ -91,6 +92,20 @@ def generate_html_summary(ds, layer, mc, maxfeature=None, features=None, thresho
         '<div class="histogram">',
         '<img class="img-fluid" src="%s" title="Summary of %s %s">' % (
             barfn, ed.basename(), layer),
+        '</div>'
+        ])
+    # histogram 2 ==== iou
+    ioufn = f'image/{expdir.fn_safe(layer)}-iou.svg'
+    ious = [float(r['score']) for r in rendered_order]
+    iou_mean = np.mean(ious)
+    iou_std = np.std(ious)
+    iou_title = f'IoUs ({iou_mean:.3f} +/- {iou_std:.3f})'
+    score_histogram(rendered_order, os.path.join(ed.directory, 'html', ioufn),
+                    title=iou_title)
+    html.extend([
+        '<div class="histogram">',
+        '<img class="img-fluid" src="%s" title="Summary of %s %s">' % (
+            ioufn, ed.basename(), layer),
         '</div>'
         ])
     html.append('<div class="gridheader">')
