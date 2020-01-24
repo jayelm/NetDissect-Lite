@@ -1,3 +1,6 @@
+import random
+
+
 class F:
     pass
 
@@ -134,4 +137,28 @@ def parse(fstr, reverse_namer=lambda x: x):
         return Leaf(reverse_namer(fstr))
 
 def minor_negate(f):
-    pass
+    """
+    Randomly negate a leaf
+    """
+    if isinstance(f, Leaf):
+        return Not(f)
+    elif isinstance(f, Not):
+        # Special case: if the val is a leaf, just return the val itself
+        if isinstance(f.val, Leaf):
+            return f.val
+        else:
+            return Not(minor_negate(f.val))
+    elif isinstance(f, And):
+        # Binary
+        if random.random() < 0.5:
+            return And(minor_negate(f.left), f.right)
+        else:
+            return And(f.left, minor_negate(f.right))
+    elif isinstance(f, Or):
+        # Binary
+        if random.random() < 0.5:
+            return Or(minor_negate(f.left), f.right)
+        else:
+            return Or(f.left, minor_negate(f.right))
+    else:
+        raise RuntimeError

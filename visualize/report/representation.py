@@ -151,9 +151,7 @@ def generate_html_summary(ds, layer, records, dist, mc, thresh,
 
             # ==== ROW 2 - other images that match the mask ====
             lab_f = F.parse(record['label'], reverse_namer=ds.rev_name)
-            #  print(f"Original: {record['label']} parsed: {repr(lab_f)}")
             labs = RO.get_labels(lab_f, labels=label2img)
-            # Sample a few
             mask_imgs = np.random.choice(np.argwhere(labs).squeeze(1), settings.TOPN + 1)  # Might sample ourselves
             mask_imgs = [mi for mi in mask_imgs if mi != inp][:settings.TOPN]
             row2fn = 'image/%s%s-%04d-maskimg.jpg' % (expdir.fn_safe(layer), gridname, inp)
@@ -168,7 +166,37 @@ def generate_html_summary(ds, layer, records, dist, mc, thresh,
             imwrite(ed.filename('html/' + row2fn), tiled)
 
             # ==== ROW 3 - images that match slightly negative masks ====
-            pass
+            negate_attempts = 0
+            while True:
+                neglab_f = F.minor_negate(lab_f)
+                neglab = neglab_f.to_str(lambda name: ds.name(None, name))
+                labs = RO.get_labels(neglab_f, labels=label2img)
+
+                row3fn = 'image/%s%s-%04d-maskimg-neg1.jpg' % (expdir.fn_safe(layer), gridname, inp)
+                if labs.sum() == 0:
+                    negate_attempts += 1
+                    if negate_attempts > 3:
+                        # Just write an empty image
+                        tiled = np.full(
+                            ((imsize + gap) * gridheight - gap,
+                             (imsize + gap) * gridwidth - gap, 3), 255, dtype='uint8')
+                        imwrite(ed.filename('html/' + row3fn), tiled)
+                        break
+                    else:
+                        continue
+
+                mask_imgs = np.random.choice(np.argwhere(labs).squeeze(1), settings.TOPN + 1)  # Might sample ourselves
+                mask_imgs = [mi for mi in mask_imgs if mi != inp][:settings.TOPN]
+                mask_imgs_ann = []
+                for mi in mask_imgs:
+                    n_oth_i = square_to_condensed(inp, mi, n_img)
+                    sim = dist[n_oth_i]
+                    mark = (0, 255, 0) if sim < thresh else (255, 0, 0)
+                    label = f"{sim:.2f}"
+                    mask_imgs_ann.append((mi, label, mark))
+                tiled = create_tiled_image(mask_imgs_ann, gridheight, gridwidth, ds, imsize=imsize, gap=gap)
+                imwrite(ed.filename('html/' + row3fn), tiled)
+                break
 
         # Generate the wrapper HTML
         graytext = ' lowscore' if float(record['score']) < settings.SCORE_THRESHOLD else ''
@@ -188,7 +216,10 @@ def generate_html_summary(ds, layer, records, dist, mc, thresh,
         html.append(
             '<div class="thumbcrop"><img src="%s" height="%d"></div>' %
             (row2fn, imscale))
-        html.append('<p class="midrule">Examples of (negative)</p>')
+        html.append(f'<p class="midrule">Examples of {neglab}</p>')
+        html.append(
+            '<div class="thumbcrop"><img src="%s" height="%d"></div>' %
+            (row3fn, imscale))
         html.append('</div') # Leave off > to eat spaces
     html.append('></div>')
     html.extend([html_suffix]);
