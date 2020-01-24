@@ -2,7 +2,7 @@ import settings
 from loader.model_loader import loadmodel
 from feature_operation import hook_feature,FeatureOperator
 from repr_operation import ReprOperator
-from visualize.report import generate_html_summary
+from visualize.report import neuron as vneuron, representation as vrepr
 from util.clean import clean
 from tqdm import tqdm
 from scipy.spatial import distance
@@ -40,11 +40,11 @@ for layer, layer_features, layer_maxfeature in ranger:
         tally_result = fo.tally(layer_features, thresholds, savepath="tally.csv")
 
         #### STEP 4: generating results
-        generate_html_summary(fo.data, layer,
-                              tally_result=tally_result,
-                              maxfeature=layer_maxfeature,
-                              features=layer_features,
-                              thresholds=thresholds)
+        vneuron.generate_html_summary(fo.data, layer,
+                                      tally_result=tally_result,
+                                      maxfeature=layer_maxfeature,
+                                      features=layer_features,
+                                      thresholds=thresholds)
     else:
         # Go through each input. Find inputs nearest to each other according to some threshold (can do this unsupervised by doing w/in sum squares)
         # Average responses over image
@@ -57,7 +57,9 @@ for layer, layer_features, layer_maxfeature in ranger:
         graph = distance.squareform(sim)
         #  adj = fo.compute_adj_list(graph)
         #### STEP 3: Search for concepts
-        res = fo.search_concepts(graph)
+        records, mc = fo.search_concepts(graph)
+        vrepr.generate_html_summary(fo.data, layer, records,
+                                    pdists_condensed, mc, force=True)
 
     if settings.CLEAN:
         clean()
