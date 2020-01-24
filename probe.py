@@ -59,7 +59,7 @@ for layer, layer_features, layer_maxfeature in ranger:
         #### STEP 3: Search for concepts
         records, mc = fo.search_concepts(graph)
         vrepr.generate_html_summary(fo.data, layer, records,
-                                    pdists_condensed, mc, force=True)
+                                    pdists_condensed, mc, thresh, force=True)
 
     if settings.CLEAN:
         clean()

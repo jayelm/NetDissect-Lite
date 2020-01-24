@@ -9,10 +9,13 @@ import visualize.expdir as expdir
 import visualize.bargraph as bargraph
 import settings
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw, ImageOps
 import warnings
 import loader.data_loader.formula as F
 from collections import Counter
+from scipy.stats import percentileofscore
+import seaborn as sns
+import os
 
 from repr_operation import FeatureOperator as FO, square_to_condensed
 # unit,category,label,score
@@ -28,8 +31,16 @@ def fix(s):
     return s
 
 
+def histogram(dist, fname, n=10000):
+    # Take a sample of the distances
+    samp_n = np.random.randint(len(dist), size=n)
+    samp = dist[samp_n]
+    plt = sns.distplot(samp)
+    ax = plt.get_figure()
+    ax.savefig(fname)
 
-def generate_html_summary(ds, layer, records, dist, mc,
+
+def generate_html_summary(ds, layer, records, dist, mc, thresh,
         imsize=None, imscale=72,
         gridwidth=None, gap=3, limit=None, force=False, verbose=False):
     ed = expdir.ExperimentDirectory(settings.OUTPUT_FOLDER)
@@ -44,24 +55,15 @@ def generate_html_summary(ds, layer, records, dist, mc,
     #  top = np.argsort(maxfeature, 0)[:-1 - settings.TOPN:-1, :].transpose()
     ed.ensure_dir('html','image')
     html = [html_prefix]
-    #  rendered_order = []
-    #  barfn = 'image/%s-bargraph.svg' % (
-            #  expdir.fn_safe(layer))
-    #  try:
-        #  bargraph.bar_graph_svg(ed, layer,
-                               #  tally_result=tally_result,
-                               #  rendered_order=rendered_order,
-                               #  save=ed.filename('html/' + barfn))
-    #  except ValueError as e:
-        #  # Probably empty
-        #  warnings.warn(f"could not make svg bargraph: {e}")
-        #  pass
-    #  html.extend([
-        #  '<div class="histogram">',
-        #  '<img class="img-fluid" src="%s" title="Summary of %s %s">' % (
-            #  barfn, ed.basename(), layer),
-        #  '</div>'
-        #  ])
+    barfn = f'image/{expdir.fn_safe(layer)}-threshold.svg'
+    histogram(dist, os.path.join(ed.directory, 'html', barfn))
+    html.extend([
+        '<div class="histogram">',
+        f'<p>Threshold: {thresh:.3f} (top {settings.REPR_ALPHA * 100}%%)</p>',
+        '<img class="img-fluid" src="%s" title="Summary of %s %s">' % (
+            barfn, ed.basename(), layer),
+        '</div>'
+        ])
     rendered_order = records
     html.append('<div class="gridheader">')
     html.append('<div class="layerinfo">')
@@ -104,9 +106,12 @@ def generate_html_summary(ds, layer, records, dist, mc,
                 ((imsize + gap) * gridheight - gap,
                  (imsize + gap) * gridwidth - gap, 3), 255, dtype='uint8')
             # Visualize the current image.
-            vis = imread(this_img_fname)
-            if vis.shape[:2] != (imsize, imsize):
-                vis = np.array(Image.fromarray(vis).resize((imsize, imsize), resample=Image.BILINEAR))
+            vis = Image.fromarray(imread(this_img_fname))
+            if vis.size[:2] != (imsize, imsize):
+                vis = vis.resize((imsize, imsize), resample=Image.BILINEAR)
+            # Add a red border
+            vis = ImageOps.expand(vis, border=10).resize((imsize, imsize), resample=Image.BILINEAR)
+            vis = np.array(vis)
             tiled[0*(imsize+gap):0*(imsize+gap)+imsize,
                   0*(imsize+gap):0*(imsize+gap)+imsize,:] = vis
 
@@ -124,6 +129,8 @@ def generate_html_summary(ds, layer, records, dist, mc,
             # TODO: Need to store "most similar" images so can
             # So we can loop through the most similar.
             for x, (index, sim) in enumerate(top):
+                if x == 0:
+                    continue  # skip the first
                 row = x // gridwidth
                 col = x % gridwidth
                 if settings.PROBE_DATASET == 'cub':
@@ -134,8 +141,15 @@ def generate_html_summary(ds, layer, records, dist, mc,
                     vis = imread(ds.filename(index))
                 if vis.shape[:2] != (imsize, imsize):
                     vis = np.array(Image.fromarray(vis).resize((imsize, imsize), resample=Image.BILINEAR))
+                vis = Image.fromarray(vis)
+                draw = ImageDraw.Draw(vis)
+                # Label w/ similarity and similarity percentile
+                label = f"{-sim:.1f}"
+                draw.text((0, 0), label)
+                vis = np.array(vis)
                 tiled[row*(imsize+gap):row*(imsize+gap)+imsize,
                       col*(imsize+gap):col*(imsize+gap)+imsize,:] = vis
+
             imwrite(ed.filename('html/' + imfn), tiled)
         # Generate the wrapper HTML
         graytext = ' lowscore' if float(record['score']) < settings.SCORE_THRESHOLD else ''
