@@ -1,5 +1,5 @@
 '''
-viewprobe creates visualizations for a certain eval.
+Visualize representation-level (neuralese) results
 '''
 
 import re
@@ -18,7 +18,7 @@ import seaborn as sns
 import os
 
 from repr_operation import ReprOperator as RO, square_to_condensed
-# unit,category,label,score
+from tqdm import tqdm
 
 replacements = [(re.compile(r[0]), r[1]) for r in [
     (r'-[sc]$', ''),
@@ -120,7 +120,7 @@ def generate_html_summary(ds, layer, records, dist, mc, thresh,
     for i, record in enumerate(
             sorted(rendered_order, key=lambda record: -float(record['score']))):
         record['score-order'] = i
-    for label_order, record in enumerate(rendered_order):
+    for label_order, record in enumerate(tqdm(rendered_order, desc='Images')):
         inp = int(record['input'])
         imfn = 'image/%s%s-%04d.jpg' % (
                 expdir.fn_safe(layer), gridname, inp)

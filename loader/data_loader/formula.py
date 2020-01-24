@@ -1,4 +1,5 @@
 import random
+import pyparsing as pp
 
 
 class F:
@@ -105,36 +106,61 @@ UNARY_OPS = [Not]
 BINARY_OPS = [Or, And]
 
 
+# The most unnecessary thing I've ever done
+identifier = pp.Word(pp.alphas.lower() + '-_ ')("FirstExpression")
+condition = pp.Group(identifier)("MainBody")
+
+# define AND, OR, and NOT as keywords, with "operator" results names
+AND_ = pp.Keyword("AND")("operator")
+OR_ = pp.Keyword("OR")("operator")
+NOT_ = pp.Keyword("NOT")("operator")
+
+expr = pp.operatorPrecedence(condition,[
+                            (NOT_, 1, pp.opAssoc.RIGHT, ),
+                            (AND_, 2, pp.opAssoc.LEFT, ),
+                            (OR_, 2, pp.opAssoc.LEFT, ),
+                            ])
+
+# undocumented hack to assign a results name to (expr) - RED FLAG
+expr.expr.resultsName = "group"
+
+
 def parse(fstr, reverse_namer=lambda x: x):
     """
     Parse a string representation back into formula.
     Reverse_namer converts back from names to actual integer indices
     """
-    if not fstr:
-        raise ValueError('empty string')
-    if fstr[0] == '(' and fstr[-1] == ')':
-        # Composition
-        fstr = fstr[1:-1]
-        # Check unary ops
-        # XXX: if ops overlap, parsing will not work!
-        for unop in UNARY_OPS:
-            unop_ = f"{unop.op} "
-            if fstr.startswith(unop_):
-                val_f = parse(fstr[len(unop_):], reverse_namer=reverse_namer)
-                return unop(val_f)
-        for binop in BINARY_OPS:
-            _binop_ = f" {binop.op} "
-            if _binop_ in fstr:
-                fst, snd = fstr.split(_binop_)
-                # Janky parsing - fst and snd must have equal number of ()s
-                if fst.count('(') != fst.count(')') or snd.count('(') != snd.count(')'):
-                    continue
-                val_fst = parse(fst, reverse_namer=reverse_namer)
-                val_snd = parse(snd, reverse_namer=reverse_namer)
-                return binop(val_fst, val_snd)
-        raise ValueError(f"Couldn't parse {fstr}")
+    flist = expr.parseString(fstr)[0] # extract item 0 from single-item list
+    return parse_flist(flist, reverse_namer)
+
+
+def parse_flist(flist, reverse_namer):
+    if len(flist) == 1:
+        # Leaf
+        val = flist[0].strip()
+        return Leaf(reverse_namer(val))
+    elif len(flist) == 2:
+        # Unary op
+        if flist[0] == 'NOT':
+            val = parse_flist(flist[1], reverse_namer)
+            return Not(val)
+        else:
+            raise ValueError(f"Could not parse {flist}")
+    elif len(flist) == 3:
+        # Binary op
+        if flist[1] == 'OR':
+            left = parse_flist(flist[0], reverse_namer)
+            right = parse_flist(flist[2], reverse_namer)
+            return Or(left, right)
+        elif flist[1] == 'AND':
+            left = parse_flist(flist[0], reverse_namer)
+            right = parse_flist(flist[2], reverse_namer)
+            return And(left, right)
+        else:
+            raise ValueError(f"Could not parse {flist}")
     else:
-        return Leaf(reverse_namer(fstr))
+        raise ValueError(f"Could not parse {flist}")
+
 
 def minor_negate(f):
     """
