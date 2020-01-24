@@ -41,8 +41,8 @@ def create_tiled_image(imgs, gridheight, gridwidth, ds, imsize=112, gap=3):
             vis = Image.fromarray(imread(ds.filename(img)))
         if vis.size[:2] != (imsize, imsize):
             vis = vis.resize((imsize, imsize), resample=Image.BILINEAR)
-        if mark:
-            vis = ImageOps.expand(vis, border=10).resize((imsize, imsize), resample=Image.BILINEAR)
+        if mark is not None:
+            vis = ImageOps.expand(vis, border=10, fill=mark).resize((imsize, imsize), resample=Image.BILINEAR)
         if label is not None:
             draw = ImageDraw.Draw(vis)
             draw.text((0, 0), label)
@@ -87,7 +87,7 @@ def generate_html_summary(ds, layer, records, dist, mc, thresh,
     histogram(dist, os.path.join(ed.directory, 'html', barfn))
     html.extend([
         '<div class="histogram">',
-        f'<p>Threshold: {thresh:.3f} (top {settings.REPR_ALPHA * 100}%%)</p>',
+        f'<p>Threshold: {thresh:.3f} (top {settings.REPR_ALPHA * 100}%)</p>',
         '<img class="img-fluid" src="%s" title="Summary of %s %s">' % (
             barfn, ed.basename(), layer),
         '</div>'
@@ -129,7 +129,7 @@ def generate_html_summary(ds, layer, records, dist, mc, thresh,
                 print('Visualizing %s unit %d' % (layer, inp))
 
             # ==== ROW 1 - most similar images ====
-            imgs = [(inp, None, True)]
+            imgs = [(inp, None, 0)]
             # Get the closest images according to distance matrix
             n_img = mc.img2label.shape[0]
             oth_dists = Counter()
@@ -144,7 +144,7 @@ def generate_html_summary(ds, layer, records, dist, mc, thresh,
                 if index == inp:
                     continue
                 lab = f"{-sim:.2f}"
-                imgs.append((index, lab, False))
+                imgs.append((index, lab, None))
 
             tiled = create_tiled_image(imgs, gridheight, gridwidth, ds, imsize=imsize, gap=gap)
             imwrite(ed.filename('html/' + imfn), tiled)
@@ -154,14 +154,16 @@ def generate_html_summary(ds, layer, records, dist, mc, thresh,
             #  print(f"Original: {record['label']} parsed: {repr(lab_f)}")
             labs = RO.get_labels(lab_f, labels=label2img)
             # Sample a few
-            mask_imgs = np.random.choice(np.argwhere(labs).squeeze(1), settings.TOPN)
+            mask_imgs = np.random.choice(np.argwhere(labs).squeeze(1), settings.TOPN + 1)  # Might sample ourselves
+            mask_imgs = [mi for mi in mask_imgs if mi != inp][:settings.TOPN]
             row2fn = 'image/%s%s-%04d-maskimg.jpg' % (expdir.fn_safe(layer), gridname, inp)
             mask_imgs_ann = []
             for mi in mask_imgs:
                 n_oth_i = square_to_condensed(inp, mi, n_img)
-                sim = -dist[n_oth_i]
-                label = f"{-sim:.2f}"
-                mask_imgs_ann.append((mi, label, False))
+                sim = dist[n_oth_i]
+                mark = (0, 255, 0) if sim < thresh else (255, 0, 0)
+                label = f"{sim:.2f}"
+                mask_imgs_ann.append((mi, label, mark))
             tiled = create_tiled_image(mask_imgs_ann, gridheight, gridwidth, ds, imsize=imsize, gap=gap)
             imwrite(ed.filename('html/' + row2fn), tiled)
 
@@ -182,11 +184,11 @@ def generate_html_summary(ds, layer, records, dist, mc, thresh,
         html.append(
             '<div class="thumbcrop"><img src="%s" height="%d"></div>' %
             (imfn, imscale))
-        html.append('<p>Other examples of feature</p>')
+        html.append('<p class="midrule">Other examples of feature</p>')
         html.append(
             '<div class="thumbcrop"><img src="%s" height="%d"></div>' %
             (row2fn, imscale))
-        html.append('<p>Examples of (negative)</p>')
+        html.append('<p class="midrule">Examples of (negative)</p>')
         html.append('</div') # Leave off > to eat spaces
     html.append('></div>')
     html.extend([html_suffix]);
@@ -230,6 +232,10 @@ html_prefix = '''
   overflow: hidden;
   width: 288px;
   height: 72px;
+}
+.midrule {
+    margin-top: 1em;
+    margin-bottom: 0.25em;
 }
 .unit {
   display: inline-block;
