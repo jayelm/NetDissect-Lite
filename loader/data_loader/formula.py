@@ -96,3 +96,32 @@ class Or(BinaryNode):
 
 class And(BinaryNode):
     op = 'AND'
+
+
+UNARY_OPS = [Not]
+BINARY_OPS = [Or, And]
+
+
+def parse(fstr):
+    if not fstr:
+        raise ValueError('empty string')
+    if fstr[0] == '(' and fstr[-1] == ')':
+        # Composition
+        fstr = fstr[1:-1]
+        # Check unary ops
+        # XXX: if ops overlap, parsing will not work!
+        for unop in UNARY_OPS:
+            unop_ = f"{unop.op} "
+            if unop_ in fstr:
+                val_f = parse(fstr[len(unop_):])
+                return unop(val_f)
+        for binop in BINARY_OPS:
+            _binop_ = f" {binop.op} "
+            if _binop_ in fstr:
+                fst, snd = fstr.split(_binop_)
+                val_fst = parse(fst)
+                val_snd = parse(snd)
+                return binop(val_fst, val_snd)
+        raise ValueError(f"Couldn't parse {fstr}")
+    else:
+        return F.Leaf(fstr)
