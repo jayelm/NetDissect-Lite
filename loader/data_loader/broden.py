@@ -104,6 +104,8 @@ class SegmentationData(AbstractSegmentation):
         with open(os.path.join(directory, 'label.csv')) as f:
             label_data = [decode_label_dict(r) for r in csv.DictReader(f)]
         self.label = build_dense_label_array(label_data)
+        # Reverse label
+        self.rev_label = {o['name']: i for i, o in enumerate(self.label)}
         # Filter out images with insufficient data
         filter_fn = partial(
                 index_has_all_data if require_all else index_has_any_data,
@@ -217,6 +219,12 @@ class SegmentationData(AbstractSegmentation):
         if category is not None:
             j = self.category_unmap[category][j]
         return self.label[j]['name']
+
+    def rev_name(self, name):
+        """
+        From text name back to index
+        """
+        return self.rev_label[name]
 
     def frequency(self, category, j):
         '''

@@ -174,23 +174,26 @@ class ReprOperator(FeatureOperator):
         return args[0], best, best_noncomp
 
     @staticmethod
-    def get_labels(f):
+    def get_labels(f, labels=None):
         """
         Serializable/global version of get_mask for multiprocessing
         """
         # TODO: Handle here when doing AND and ORs of scenes vs scalars.
         if isinstance(f, F.And):
-            labels_l = ReprOperator.get_labels(f.left)
-            labels_r = ReprOperator.get_labels(f.right)
+            labels_l = ReprOperator.get_labels(f.left, labels=labels)
+            labels_r = ReprOperator.get_labels(f.right, labels=labels)
             return np.logical_and(labels_l, labels_r)
         elif isinstance(f, F.Or):
-            labels_l = ReprOperator.get_labels(f.left)
-            labels_r = ReprOperator.get_labels(f.right)
+            labels_l = ReprOperator.get_labels(f.left, labels=labels)
+            labels_r = ReprOperator.get_labels(f.right, labels=labels)
             return np.logical_or(labels_l, labels_r)
         elif isinstance(f, F.Not):
-            labels_val = ReprOperator.get_labels(f.val)
+            labels_val = ReprOperator.get_labels(f.val, labels=labels)
             return np.logical_not(labels_val)
         elif isinstance(f, F.Leaf):
-            return g['label2img'][f.val]
+            if labels is None:
+                return g['label2img'][f.val]
+            else:
+                return labels[f.val]
         else:
             raise ValueError("Most be passed formula")

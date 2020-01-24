@@ -102,7 +102,11 @@ UNARY_OPS = [Not]
 BINARY_OPS = [Or, And]
 
 
-def parse(fstr):
+def parse(fstr, reverse_namer=lambda x: x):
+    """
+    Parse a string representation back into formula.
+    Reverse_namer converts back from names to actual integer indices
+    """
     if not fstr:
         raise ValueError('empty string')
     if fstr[0] == '(' and fstr[-1] == ')':
@@ -112,16 +116,22 @@ def parse(fstr):
         # XXX: if ops overlap, parsing will not work!
         for unop in UNARY_OPS:
             unop_ = f"{unop.op} "
-            if unop_ in fstr:
-                val_f = parse(fstr[len(unop_):])
+            if fstr.startswith(unop_):
+                val_f = parse(fstr[len(unop_):], reverse_namer=reverse_namer)
                 return unop(val_f)
         for binop in BINARY_OPS:
             _binop_ = f" {binop.op} "
             if _binop_ in fstr:
                 fst, snd = fstr.split(_binop_)
-                val_fst = parse(fst)
-                val_snd = parse(snd)
+                # Janky parsing - fst and snd must have equal number of ()s
+                if fst.count('(') != fst.count(')') or snd.count('(') != snd.count(')'):
+                    continue
+                val_fst = parse(fst, reverse_namer=reverse_namer)
+                val_snd = parse(snd, reverse_namer=reverse_namer)
                 return binop(val_fst, val_snd)
         raise ValueError(f"Couldn't parse {fstr}")
     else:
-        return F.Leaf(fstr)
+        return Leaf(reverse_namer(fstr))
+
+def minor_negate(f):
+    pass
