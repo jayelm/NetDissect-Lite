@@ -5,6 +5,7 @@ ade20k
 import pandas as pd
 from operator import itemgetter
 import numpy as np
+np.random.seed(0)
 
 index = pd.read_csv('./dataset/broden1_224/index.csv')
 
