@@ -21,6 +21,9 @@ class Leaf(F):
     def __repr__(self):
         return f"Leaf({str(self)})"
 
+    def get_vals(self):
+        return [self.val]
+
 
 class Node(F):
     pass
@@ -33,11 +36,11 @@ class UnaryNode(Node):
         self.val = val
 
     def __str__(self):
-        return f'{self.op} {self.val}'
+        return f'({self.op} {self.val})'
 
     def to_str(self, namer):
         not_name = self.val.to_str(namer)
-        return f'{self.op} {not_name}'
+        return f'({self.op} {not_name})'
 
     def __len__(self):
         return 1 + len(self.val)
@@ -48,6 +51,9 @@ class UnaryNode(Node):
     def __repr__(self):
         return f"{self.op}({self.val})"
 
+    def get_vals(self):
+        return self.val.get_vals()
+
 
 class BinaryNode(Node):
     op = None
@@ -57,12 +63,12 @@ class BinaryNode(Node):
         self.right = right
 
     def __str__(self):
-        return f'{self.left} {self.op} {self.right}'
+        return f'({self.left} {self.op} {self.right})'
 
     def to_str(self, namer):
         left_name = self.left.to_str(namer)
         right_name = self.right.to_str(namer)
-        return f'{left_name} {self.op} {right_name}'
+        return f'({left_name} {self.op} {right_name})'
 
     def __len__(self):
         return len(self.left) + len(self.right)
@@ -72,6 +78,12 @@ class BinaryNode(Node):
 
     def __repr__(self):
         return f"{self.op}({self.left}, {self.right})"
+
+    def get_vals(self):
+        vals = []
+        vals.extend(self.left.get_vals())
+        vals.extend(self.right.get_vals())
+        return vals
 
 
 class Not(UnaryNode):

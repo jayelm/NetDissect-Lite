@@ -247,8 +247,18 @@ class FeatureOperator:
         del g['features']
 
         records = []
-        mp_args = ((u, ) for u in range(units))
-        with mp.Pool(settings.PARALLEL) as p, tqdm(total=units, desc='IoU - primitives') as pbar:
+        if settings.UNIT_RANGE is None:
+            mp_args = ((u, ) for u in range(units))
+            nu = units
+            tally_dfname = 'tally.csv'
+        else:
+            # Only use a subset of units
+            mp_args = ((u, ) for u in settings.UNIT_RANGE)
+            nu = len(settings.UNIT_RANGE)
+            tally_dfname = f"tally_{min(settings.UNIT_RANGE)}_{max(settings.UNIT_RANGE)}.csv"
+        tally_dfname = os.path.join(settings.OUTPUT_FOLDER, tally_dfname)
+
+        with mp.Pool(settings.PARALLEL) as p, tqdm(total=nu, desc='IoU - primitives') as pbar:
             for (u, best_lab, best_iou) in p.imap_unordered(FeatureOperator.compute_best_iou, mp_args):
                 best_name = best_lab.to_str(lambda name: data.name(None, name))
                 best_cat = best_lab.to_str(lambda name: categories[pcats[name]])
@@ -261,9 +271,8 @@ class FeatureOperator:
                 records.append(r)
                 pbar.update()
 
-        tally_df = pd.DataFrame(records)
-        tally_df.to_csv(os.path.join(settings.OUTPUT_FOLDER, 'tally.csv'),
-                        index=False)
+                tally_df = pd.DataFrame(records)
+                tally_df.to_csv(tally_dfname, index=False)
         return records
 
     @staticmethod
@@ -283,27 +292,27 @@ class FeatureOperator:
                 best_lab = lab_f
 
         nonzero_iou = Counter({lab: iou for lab, iou in ious.items() if iou > 0})
-        # Pick 10 best
+        # Beam search
         formulas = {F.Leaf(lab): iou for lab, iou in nonzero_iou.most_common(settings.BEAM_SIZE)}
         for i in range(settings.MAX_FORMULA_LENGTH - 1):
             new_formulas = {}
             for formula in formulas:
-                for label in nonzero_iou.keys():
-                    for negate in [False]:
-                        for op in [F.Or]:
-                            new_term = F.Leaf(label)
-                            if negate:
-                                new_term = F.Not(new_term)
-                            new_term = op(formula, new_term)
-                            masks_comp = get_mask_global(g['masks'], new_term)
-                            comp_tally_label = cmask.area(masks_comp)
-                            comp_iou = FeatureOperator.compute_iou(
-                                g['all_uidx'][u], g['all_uhitidx'][u], masks_comp, g['tally_units'][u], comp_tally_label
-                            )
+                for label in g['labels']:
+                    for op, negate in [(F.Or, False), (F.And, False), (F.And, True)]:
+                        new_term = F.Leaf(label)
+                        if negate:
+                            new_term = F.Not(new_term)
+                        new_term = op(formula, new_term)
+                        masks_comp = get_mask_global(g['masks'], new_term)
+                        comp_tally_label = cmask.area(masks_comp)
+                        comp_iou = FeatureOperator.compute_iou(
+                            g['all_uidx'][u], g['all_uhitidx'][u], masks_comp, g['tally_units'][u], comp_tally_label
+                        )
 
-                            comp_iou = (settings.FORMULA_COMPLEXITY_PENALTY ** (len(new_term) - 1)) * comp_iou
+                        comp_iou = (settings.FORMULA_COMPLEXITY_PENALTY ** (len(new_term) - 1)) * comp_iou
 
-                            new_formulas[new_term] = comp_iou
+                        new_formulas[new_term] = comp_iou
+
             formulas.update(new_formulas)
             # Trim the beam
             formulas = dict(Counter(formulas).most_common(settings.BEAM_SIZE))
