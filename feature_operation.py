@@ -271,8 +271,12 @@ class FeatureOperator:
                 records.append(r)
                 pbar.update()
 
-                tally_df = pd.DataFrame(records)
-                tally_df.to_csv(tally_dfname, index=False)
+                if len(records) % 16 == 0:
+                    tally_df = pd.DataFrame(records)
+                    tally_df.to_csv(tally_dfname, index=False)
+
+        tally_df = pd.DataFrame(records)
+        tally_df.to_csv(tally_dfname, index=False)
         return records
 
     @staticmethod
