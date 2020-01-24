@@ -144,6 +144,7 @@ def generate_html_summary(ds, layer, records, dist, mc, thresh,
                 if index == inp:
                     continue
                 lab = f"{-sim:.2f}"
+                mark = (0, 255, 0) if -sim < thresh else (255, 0, 0)
                 imgs.append((index, lab, None))
 
             tiled = create_tiled_image(imgs, gridheight, gridwidth, ds, imsize=imsize, gap=gap)
@@ -168,7 +169,7 @@ def generate_html_summary(ds, layer, records, dist, mc, thresh,
             # ==== ROW 3 - images that match slightly negative masks ====
             negate_attempts = 0
             while True:
-                neglab_f = F.minor_negate(lab_f)
+                neglab_f = F.minor_negate(lab_f, hard=negate_attempts==0)
                 neglab = neglab_f.to_str(lambda name: ds.name(None, name))
                 labs = RO.get_labels(neglab_f, labels=label2img)
 
@@ -201,11 +202,11 @@ def generate_html_summary(ds, layer, records, dist, mc, thresh,
         # Generate the wrapper HTML
         graytext = ' lowscore' if float(record['score']) < settings.SCORE_THRESHOLD else ''
         html.append('><div class="unit%s" data-order="%d %d %d">' %
-                (graytext, label_order, record['score-order'], inp + 1))
+                (graytext, label_order, record['score-order'], inp))
         html.append('<div class="unitlabel">%s</div>' % fix(record['label']))
         html.append('<div class="info">' +
             '<span class="layername">%s</span> ' % layer +
-            '<span class="unitnum">image %d</span> ' % (inp + 1) +
+            '<span class="unitnum">image %d</span> ' % (inp) +
             '<span class="category">(%s)</span> ' % record['category'] +
             '<span class="iou">Jaccard %.2f</span>' % float(record['score']) +
             '</div>')

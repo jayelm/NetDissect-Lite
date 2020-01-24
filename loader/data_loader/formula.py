@@ -162,9 +162,12 @@ def parse_flist(flist, reverse_namer):
         raise ValueError(f"Could not parse {flist}")
 
 
-def minor_negate(f):
+def minor_negate(f, hard=False):
     """
-    Randomly negate a leaf
+    Negate a leaf
+
+    If Hard, deterministically choose the one that's furthest away (TODO: Can
+    be improved; neegate ORs earlier). Otherwise chooses randomly
     """
     if isinstance(f, Leaf):
         return Not(f)
@@ -173,18 +176,26 @@ def minor_negate(f):
         if isinstance(f.val, Leaf):
             return f.val
         else:
-            return Not(minor_negate(f.val))
+            return Not(minor_negate(f.val, hard=hard))
     elif isinstance(f, And):
         # Binary
-        if random.random() < 0.5:
-            return And(minor_negate(f.left), f.right)
+        if hard:
+            cond = len(f.left) < len(f.right)
         else:
-            return And(f.left, minor_negate(f.right))
+            cond = random.random() < 0.5
+        if cond:
+            return And(f.left, minor_negate(f.right, hard=hard))
+        else:
+            return And(minor_negate(f.left, hard=hard), f.right)
     elif isinstance(f, Or):
         # Binary
-        if random.random() < 0.5:
-            return Or(minor_negate(f.left), f.right)
+        if hard:
+            cond = len(f.left) < len(f.right)
         else:
-            return Or(f.left, minor_negate(f.right))
+            cond = random.random() < 0.5
+        if cond:
+            return Or(f.left, minor_negate(f.right, hard=hard))
+        else:
+            return Or(minor_negate(f.left, hard=hard), f.right)
     else:
         raise RuntimeError
