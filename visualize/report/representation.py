@@ -17,7 +17,7 @@ from collections import Counter
 from scipy.stats import percentileofscore
 import os
 
-from repr_operation import ReprOperator as RO, square_to_condensed
+from dissection.representation import ReprOperator as RO, square_to_condensed
 from tqdm import tqdm
 
 replacements = [(re.compile(r[0]), r[1]) for r in [

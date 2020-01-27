@@ -20,15 +20,15 @@ FORMULA_COMPLEXITY_PENALTY = 0.99  # How much to downweight formulas by their le
 BEAM_SIZE = 5  # Size of the beam when doing formula search
 MAX_FORMULA_LENGTH = 3  # Maximum compositional formula length
 FORCE_DISJUNCTION = False   # Only output disjunctive concepts. (Otherwise, disjunctive concepts are only identified if they have the highest IoU relative to other categories)
-OUTPUT_FOLDER = f"result/{MODEL}_{DATASET}_{PROBE_DATASET}_{LEVEL}_{MAX_FORMULA_LENGTH}"  # result will be stored in this folder
 
-FOLDER_SUFFIX = INDEX_FILE.split('index')[1].split('.csv')
-if not FOLDER_SUFFIX:
-    FOLDER_SUFFIX = ''
+INDEX_SUFFIX = INDEX_FILE.split('index')[1].split('.csv')
+if not INDEX_SUFFIX:
+    INDEX_SUFFIX = ''
 else:
-    FOLDER_SUFFIX = FOLDER_SUFFIX[0]
+    INDEX_SUFFIX = INDEX_SUFFIX[0]
 
-OUTPUT_FOLDER += FOLDER_SUFFIX
+OUTPUT_FOLDER = f"result/{MODEL}_{DATASET}_{PROBE_DATASET}{INDEX_SUFFIX}_{LEVEL}_{MAX_FORMULA_LENGTH}"  # result will be stored in this folder
+
 print(OUTPUT_FOLDER)
 
 TEST_MODE = INDEX_FILE == 'index_sm.csv'
