@@ -33,7 +33,7 @@ def upsample_features(features, shape):
     return np.array(Image.fromarray(features).resize(shape, resample=Image.BILINEAR))
 
 
-class FeatureOperator:
+class NeuronOperator:
     def __init__(self):
         os.makedirs(os.path.join(settings.OUTPUT_FOLDER, 'image'), exist_ok=True)
         if settings.PROBE_DATASET == 'broden':
@@ -153,9 +153,9 @@ class FeatureOperator:
     @staticmethod
     def tally_job(args):
         if settings.MASK_SEARCH:
-            return FeatureOperator.tally_job_search(args)
+            return NeuronOperator.tally_job_search(args)
         else:
-            FeatureOperator.tally_job_std(args)
+            NeuronOperator.tally_job_std(args)
 
     @staticmethod
     def get_uhits(args):
@@ -238,7 +238,7 @@ class FeatureOperator:
         g['all_uidx'] = all_uidx
         g['all_uhitidx'] = all_uhitidx
         with mp.Pool(settings.PARALLEL) as p, tqdm(total=units, desc='Tallying units') as pbar:
-            for (u, uidx, uhitidx, uhits) in p.imap_unordered(FeatureOperator.get_uhits, mp_args):
+            for (u, uidx, uhitidx, uhits) in p.imap_unordered(NeuronOperator.get_uhits, mp_args):
                 all_uidx[u] = uidx
                 all_uhitidx[u] = uhitidx
                 # Get all labels which have at least one true here
@@ -264,7 +264,7 @@ class FeatureOperator:
         tally_dfname = os.path.join(settings.OUTPUT_FOLDER, tally_dfname)
 
         with mp.Pool(settings.PARALLEL) as p, tqdm(total=nu, desc='IoU - primitives') as pbar:
-            for (u, best_lab, best_iou) in p.imap_unordered(FeatureOperator.compute_best_iou, mp_args):
+            for (u, best_lab, best_iou, best_noncomp_lab, best_noncomp_iou) in p.imap_unordered(NeuronOperator.compute_best_iou, mp_args):
                 best_name = best_lab.to_str(lambda name: data.name(None, name))
                 best_cat = best_lab.to_str(lambda name: categories[pcats[name]])
                 r = {
@@ -293,7 +293,7 @@ class FeatureOperator:
         for lab in g['pos_labels'][u]:
             lab_f = F.Leaf(lab)
             masks = g['masks'][lab]
-            lab_iou = FeatureOperator.compute_iou(
+            lab_iou = NeuronOperator.compute_iou(
                 g['all_uidx'][u], g['all_uhitidx'][u], masks, g['tally_units'][u], g['tally_labels'][lab])
             ious[lab] = lab_iou
             if not settings.FORCE_DISJUNCTION and lab_iou > best_iou:
@@ -314,7 +314,7 @@ class FeatureOperator:
                         new_term = op(formula, new_term)
                         masks_comp = get_mask_global(g['masks'], new_term)
                         comp_tally_label = cmask.area(masks_comp)
-                        comp_iou = FeatureOperator.compute_iou(
+                        comp_iou = NeuronOperator.compute_iou(
                             g['all_uidx'][u], g['all_uhitidx'][u], masks_comp, g['tally_units'][u], comp_tally_label
                         )
 
@@ -329,7 +329,7 @@ class FeatureOperator:
         best_lab, best_iou = Counter(formulas).most_common(1)[0]
 
         # Get besti ou
-        return u, best_lab, best_iou
+        return u, best_lab, best_iou, best_noncomp_lab, best_noncomp_iou
 
     @staticmethod
     def compute_iou(uidx, uhitidx, masks, tally_unit, tally_label):
@@ -462,9 +462,9 @@ class FeatureOperator:
                       s < self.data.size()]
             params = [(features, self.data, threshold, tally_labels, tally_units, tally_units_cat, tally_both) + r for r in ranges]
             threadpool = pool.ThreadPool(processes=settings.PARALLEL)
-            threadpool.map(FeatureOperator.tally_job, params)
+            threadpool.map(NeuronOperator.tally_job, params)
         else:
-            maybe_rets = FeatureOperator.tally_job((features, self.data, threshold, tally_labels, tally_units, tally_units_cat, tally_both, 0, self.data.size(), savepath, csvpath))
+            maybe_rets = NeuronOperator.tally_job((features, self.data, threshold, tally_labels, tally_units, tally_units_cat, tally_both, 0, self.data.size(), savepath, csvpath))
 
         if settings.MASK_SEARCH:
             return maybe_rets

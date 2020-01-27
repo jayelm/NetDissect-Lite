@@ -1,7 +1,7 @@
 import settings
 from loader.model_loader import loadmodel
-from feature_operation import hook_feature,FeatureOperator
-from repr_operation import ReprOperator
+from dissection.neuron import hook_feature, NeuronOperator
+from dissection.representation import ReprOperator
 from visualize.report import neuron as vneuron, representation as vrepr
 from util.clean import clean
 from tqdm import tqdm
@@ -16,7 +16,7 @@ def noop(*args, **kwargs):
 
 model = loadmodel(hook_feature)
 if settings.LEVEL == 'neuron':
-    fo = FeatureOperator()
+    fo = NeuronOperator()
 elif settings.LEVEL == 'representation':
     fo = ReprOperator()
 else:

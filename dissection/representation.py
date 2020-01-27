@@ -18,7 +18,8 @@ from tqdm import tqdm, trange
 import csv
 from collections import Counter
 import itertools
-from feature_operation import FeatureOperator
+from dissection.neuron import NeuronOperator
+
 
 from pycocotools import mask as cmask
 from scipy.spatial.distance import squareform, jaccard
@@ -39,7 +40,7 @@ def square_to_condensed(i, j, n):
     return int(res)
 
 
-class ReprOperator(FeatureOperator):
+class ReprOperator(NeuronOperator):
     def compute_pdists(self, features):
         pdists_fname = os.path.join(settings.OUTPUT_FOLDER, 'pdists.npz')
         if os.path.exists(pdists_fname):
