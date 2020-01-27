@@ -264,14 +264,23 @@ class NeuronOperator:
         tally_dfname = os.path.join(settings.OUTPUT_FOLDER, tally_dfname)
 
         with mp.Pool(settings.PARALLEL) as p, tqdm(total=nu, desc='IoU - primitives') as pbar:
-            for (u, best_lab, best_iou, best_noncomp_lab, best_noncomp_iou) in p.imap_unordered(NeuronOperator.compute_best_iou, mp_args):
+            for (u, best, best_noncomp) in p.imap_unordered(NeuronOperator.compute_best_iou, mp_args):
+                best_lab, best_iou = best
+                best_noncomp_lab, best_noncomp_iou = best_noncomp
+
                 best_name = best_lab.to_str(lambda name: data.name(None, name))
                 best_cat = best_lab.to_str(lambda name: categories[pcats[name]])
+                best_noncomp_name = best_noncomp_lab.to_str(lambda name: data.name(None, name))
+                best_noncomp_cat = best_noncomp_lab.to_str(lambda name: categories[pcats[name]])
+
                 r = {
                     'unit': (u + 1),
                     'category': best_cat,
                     'label': best_name,
-                    'score': best_iou
+                    'score': best_iou,
+                    'category_noncomp': best_noncomp_cat,
+                    'label_noncomp': best_noncomp_name,
+                    'score_noncomp': best_noncomp_iou,
                 }
                 records.append(r)
                 pbar.update()
@@ -303,6 +312,8 @@ class NeuronOperator:
         nonzero_iou = Counter({lab: iou for lab, iou in ious.items() if iou > 0})
         # Beam search
         formulas = {F.Leaf(lab): iou for lab, iou in nonzero_iou.most_common(settings.BEAM_SIZE)}
+        best_noncomp = Counter(formulas).most_common(1)[0]
+
         for i in range(settings.MAX_FORMULA_LENGTH - 1):
             new_formulas = {}
             for formula in formulas:
@@ -326,10 +337,10 @@ class NeuronOperator:
             # Trim the beam
             formulas = dict(Counter(formulas).most_common(settings.BEAM_SIZE))
 
-        best_lab, best_iou = Counter(formulas).most_common(1)[0]
+        best = Counter(formulas).most_common(1)[0]
 
         # Get besti ou
-        return u, best_lab, best_iou, best_noncomp_lab, best_noncomp_iou
+        return u, best, best_noncomp
 
     @staticmethod
     def compute_iou(uidx, uhitidx, masks, tally_unit, tally_label):
