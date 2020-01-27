@@ -133,7 +133,7 @@ def generate_html_summary(ds, layer, records, dist, mc, thresh,
             neglab = '<error>'
             row2fn = 'image/%s%s-%04d-maskimg.jpg' % (expdir.fn_safe(layer), gridname, inp)
             row3fn = 'image/%s%s-%04d-maskimg-neg1.jpg' % (expdir.fn_safe(layer), gridname, inp)
-            if record['label']:  # Could be empty if no formula found
+            if isinstance(record['label'], str) and record['label']:  # Could be empty if no formula found
                 lab_f = F.parse(record['label'], reverse_namer=ds.rev_name)
                 labs = RO.get_labels(lab_f, labels=label2img)
                 mask_imgs = np.random.choice(np.argwhere(labs).squeeze(1), settings.TOPN + 1)  # Might sample ourselves
