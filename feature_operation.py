@@ -282,7 +282,7 @@ class FeatureOperator:
 
         tally_df = pd.DataFrame(records)
         tally_df.to_csv(tally_dfname, index=False)
-        return records
+        return records, mc
 
     @staticmethod
     def compute_best_iou(args):
