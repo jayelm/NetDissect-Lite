@@ -168,6 +168,13 @@ def generate_html_summary(ds, layer, mc, maxfeature=None, features=None, thresho
             # ==== ROW 2 - other images that match the mask ====
             lab_f = F.parse(record['label'], reverse_namer=ds.rev_name)
             labs_enc = mc.get_mask(lab_f)
+            if settings.EMBEDDING_SUMMARY:
+                # Add a summary; load spacy only if needed
+                from visualize.report import summary
+                summ = summary.summarize(lab_f)
+                summ = f" ({summ})"
+            else:
+                summ = ''
             labs = cmask.decode(labs_enc)
             # Unflatten
             labs = labs.reshape((features.shape[0], *mc.mask_shape))
@@ -239,7 +246,7 @@ def generate_html_summary(ds, layer, mc, maxfeature=None, features=None, thresho
         graytext = ' lowscore' if float(record['score']) < settings.SCORE_THRESHOLD else ''
         html.append('><div class="unit%s" data-order="%d %d %d">' %
                 (graytext, label_order, record['score-order'], unit + 1))
-        html.append('<div class="unitlabel">%s</div>' % fix(record['label']))
+        html.append(f"<div class='unitlabel'>{fix(record['label'])}{summ}</div>")
         html.append('<div class="info">' +
             '<span class="layername">%s</span> ' % layer +
             '<span class="unitnum">unit %d</span> ' % (unit + 1) +

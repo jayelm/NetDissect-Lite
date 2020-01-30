@@ -14,6 +14,7 @@ CATAGORIES = ["object", "part","scene","texture","color"] # concept categories t
 LEVEL = "neuron"    # Neuron or representation
 IMAGES = 256 # Representation level - look at this many imagse
 REPR_ALPHA = 0.05         # Consider this closest as "close" representations
+EMBEDDING_SUMMARY = True    # Make an embedding-based summary of the formulas during visualization
 UNIT_RANGE = None  # Give range if you want to use only some units
 MASK_SEARCH = True
 FORMULA_COMPLEXITY_PENALTY = 0.99  # How much to downweight formulas by their length
