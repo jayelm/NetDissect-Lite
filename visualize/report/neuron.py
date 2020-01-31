@@ -168,19 +168,19 @@ def generate_html_summary(ds, layer, mc, maxfeature=None, features=None, thresho
             # ==== ROW 2 - other images that match the mask ====
             lab_f = F.parse(record['label'], reverse_namer=ds.rev_name)
             labs_enc = mc.get_mask(lab_f)
-            if settings.EMBEDDING_SUMMARY:
+            if settings.EMBEDDING_SUMMARY and len(lab_f) > 1:
                 # Add a summary; load spacy only if needed
                 from visualize.report import summary
-                summ = summary.summarize(lab_f)
-                summ = f" ({summ})"
+                summ, sim = summary.summarize(lab_f, lambda j: ds.name(None, j))
+                summ = f" ({summ} {sim:.3f})"
             else:
                 summ = ''
             labs = cmask.decode(labs_enc)
             # Unflatten
             labs = labs.reshape((features.shape[0], *mc.mask_shape))
-            # Sum up
+            # sum up
             lab_tallies = labs.sum((1, 2))
-            # Get biggest tallies
+            # get biggest tallies
             idx = np.argsort(lab_tallies)[::-1][:settings.TOPN]
             mask_imgs_ann = []
             for i in idx:
