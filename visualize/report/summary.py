@@ -17,9 +17,6 @@ def summarize(f, namer):
     leaves = [namer(l) for l in leaves]
     # Remove scene suffixes
     leaves = [l[:-2] if l.endswith('-s') else l for l in leaves]
-    leaves = [l for l in leaves if l in nlp.vocab]
-    if any(l not in nlp.vocab for l in leaves):
-        print([l for l in leaves if l not in nlp.vocab])
     vecs = [nlp(l).vector for l in leaves]
     vec = np.array(vecs).mean(0)[np.newaxis]
     keys, _, sims, = nlp.vocab.vectors.most_similar(vec, n=1, batch_size=10000)
