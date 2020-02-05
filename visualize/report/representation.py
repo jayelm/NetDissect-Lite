@@ -32,7 +32,7 @@ def fix(s):
     return s
 
 
-def generate_html_summary(ds, layer, records, dist, mc, thresh,
+def generate_html_summary(ds, layer, records, dist, preds, mc, thresh,
         imsize=None, imscale=72,
         gridwidth=None, gap=3, limit=None, force=False, verbose=False):
     label2img = mc.img2label.T
@@ -136,17 +136,24 @@ def generate_html_summary(ds, layer, records, dist, mc, thresh,
             if isinstance(record['label'], str) and record['label']:  # Could be empty if no formula found
                 lab_f = F.parse(record['label'], reverse_namer=ds.rev_name)
                 labs = RO.get_labels(lab_f, labels=label2img)
-                mask_imgs = np.random.choice(np.argwhere(labs).squeeze(1), settings.TOPN + 1)  # Might sample ourselves
-                mask_imgs = [mi for mi in mask_imgs if mi != inp][:settings.TOPN]
-                mask_imgs_ann = []
-                for mi in mask_imgs:
-                    n_oth_i = square_to_condensed(inp, mi, n_img)
-                    sim = dist[n_oth_i]
-                    mark = (0, 255, 0) if sim < thresh else (255, 0, 0)
-                    label = f"{sim:.2f}"
-                    mask_imgs_ann.append((mi, label, mark))
-                tiled = create_tiled_image(mask_imgs_ann, gridheight, gridwidth, ds, imsize=imsize, gap=gap)
-                imwrite(ed.filename('html/' + row2fn), tiled)
+                if labs.sum() == 0:
+                    # Just write an empty image
+                    tiled = np.full(
+                        ((imsize + gap) * gridheight - gap,
+                         (imsize + gap) * gridwidth - gap, 3), 255, dtype='uint8')
+                    imwrite(ed.filename('html/' + row2fn), tiled)
+                else:
+                    mask_imgs = np.random.choice(np.argwhere(labs).squeeze(1), settings.TOPN + 1)  # Might sample ourselves
+                    mask_imgs = [mi for mi in mask_imgs if mi != inp][:settings.TOPN]
+                    mask_imgs_ann = []
+                    for mi in mask_imgs:
+                        n_oth_i = square_to_condensed(inp, mi, n_img)
+                        sim = dist[n_oth_i]
+                        mark = (0, 255, 0) if sim < thresh else (255, 0, 0)
+                        label = f"{sim:.2f}"
+                        mask_imgs_ann.append((mi, label, mark))
+                    tiled = create_tiled_image(mask_imgs_ann, gridheight, gridwidth, ds, imsize=imsize, gap=gap)
+                    imwrite(ed.filename('html/' + row2fn), tiled)
 
                 # ==== ROW 3 - images that match slightly negative masks ====
                 negate_attempts = 0
@@ -181,6 +188,7 @@ def generate_html_summary(ds, layer, records, dist, mc, thresh,
                     break
 
         # Generate the wrapper HTML
+        correct = record["pred_label"] == record["true_label"]
         graytext = ' lowscore' if float(record['score']) < settings.SCORE_THRESHOLD else ''
         html.append('><div class="unit%s" data-order="%d %d %d">' %
                 (graytext, label_order, record['score-order'], inp))
@@ -190,6 +198,7 @@ def generate_html_summary(ds, layer, records, dist, mc, thresh,
             '<span class="unitnum">image %d</span> ' % (inp) +
             '<span class="category">(%s)</span> ' % record['category'] +
             '<span class="iou">Jaccard %.2f</span>' % float(record['score']) +
+            f'<span class="prediction-{"correct" if correct else "incorrect"}">pred: {record["pred_label"]} true: {record["true_label"]}</span> ' +
             '</div>')
         html.append(
             '<div class="thumbcrop"><img src="%s" height="%d"></div>' %
@@ -288,6 +297,12 @@ html_prefix = '''
 }
 .img-scroller .img-fluid {
   max-width: initial;
+}
+.prediction-correct {
+    color: green;
+}
+.prediction-incorrect {
+    color: red;
 }
 .gridheader {
   font-size: 12px;

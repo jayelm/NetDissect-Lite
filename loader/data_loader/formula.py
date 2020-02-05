@@ -107,7 +107,7 @@ BINARY_OPS = [Or, And]
 
 
 # The most unnecessary thing I've ever done
-identifier = pp.Word(pp.alphas.lower() + '-_ ')("FirstExpression")
+identifier = pp.Word(pp.alphas.lower() + pp.nums + '-_ :')("FirstExpression")
 condition = pp.Group(identifier)("MainBody")
 
 # define AND, OR, and NOT as keywords, with "operator" results names

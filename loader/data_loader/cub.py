@@ -44,6 +44,7 @@ PARTS = [
     'tail',
     'throat',
 ]
+REV_PARTS = dict((v, k) for k, v in enumerate(PARTS))
 
 
 transformtypedict = dict(
@@ -171,6 +172,8 @@ def load_cub(data_dir, random_state=None, max_classes=None, train_only=False,
     attr_names = pd.read_csv(attr_names_fname, names=['attribute_id', 'attribute_name'],
                              sep=' ')
     attr_names['attribute_id'] = attr_names['attribute_id'] - 1
+    # Replace ( ) for parsing later
+    attr_names['attribute_name'] = attr_names['attribute_name'].str.replace('(', '').str.replace(')', '')
     attr_names['category'], attr_names['value'] = zip(*attr_names.attribute_name.str.split('::'))
     #  attr_names2id = dict(zip(attr_names.attribute_name, attr_names.attribute_id))
     #  id2attr_names = {v: k for k, v in attr_names2id.items()}
@@ -231,6 +234,7 @@ class CUBDataset:
         self.image_metadata = image_metadata
         self.attr_categories = list(self.attr_metadata['category'].unique())
         self.attr_names = list(self.attr_metadata['attribute_name'])
+        self.rev_attr_names = dict((v, k) for k, v in enumerate(self.attr_names))
         self.attr2cat = dict(zip(self.attr_metadata['attribute_id'],
                                  self.attr_metadata['category']))
         self.cat2id = dict((v, k) for k, v in enumerate(self.attr_metadata['category'].unique()))
@@ -239,26 +243,34 @@ class CUBDataset:
 
     def primary_categories_per_index(self):
         # ATTRS
-        #  return np.array([self.cat2id[cat] for cat in self.attr_metadata['category']])
-        return np.zeros(len(PARTS), dtype=np.int)
+        return np.array([self.cat2id[cat] for cat in self.attr_metadata['category']])
+        #  return np.zeros(len(PARTS), dtype=np.int)
 
     def category_names(self):
         # ATTRS
-        #  return self.attr_categories
-        return ['part']
+        return self.attr_categories
+        #  return ['part']
 
     def name(self, category, j):
         # ATTRS
         #  if category is not None:
             #  raise NotImplementedError
-        #  return self.attr_names[j]
-        return PARTS[j]
+        return self.attr_names[j]
+        #  return PARTS[j]
+
+    def rev_name(self, name):
+        """
+        From text name back to index
+        """
+        # ATTRS
+        return self.rev_attr_names[name]
+        #  return REV_PARTS[name]
 
     @property
     def label(self):
         # ATTRS
-        #  return self.attr_names
-        return PARTS
+        return self.attr_names
+        #  return PARTS
 
     def attr_to_cm(self, attr, idx):
         is_present = np.argwhere(attr).squeeze()
@@ -314,6 +326,7 @@ class CUBSegmentationPrefetcher:
         batch_size: number of data items for each batch.
         ahead: the number of data items to prefetch ahead.
         '''
+        self.segmentation = data
         self.cub = data
         self.batch_size = batch_size
         self.cub_loader = to_dataloader(self.cub, batch_size=batch_size,
@@ -323,7 +336,7 @@ class CUBSegmentationPrefetcher:
             cn: np.load(os.path.join(settings.DATA_DIRECTORY, 'parts', 'segmentations', f'{cn}.npz'))
             for cn in data.class_names
         }
-        self.seg_transformer = CenterCrop(size=(244, 244))
+        self.seg_transformer = CenterCrop(size=(224, 224))
 
     def categories(self):
         return self.cub.category_names()
@@ -332,10 +345,10 @@ class CUBSegmentationPrefetcher:
     def label(self):
         return self.cub.label
 
-    def batches(self):
-        for *_, ids, _ in self.cub_loader:
-            cm = self.fetch_segmentations(ids.numpy())
-            yield cm
+    #  def batches(self):
+        #  for *_, ids, _ in self.cub_loader:
+            #  cm = self.fetch_segmentations(ids.numpy())
+            #  yield cm
 
     def fetch_segmentations(self, ids):
         cms = []
@@ -356,13 +369,13 @@ class CUBSegmentationPrefetcher:
         return cms
 
     # ATTRS
-    #  def batches(self):
-        #  # Get concept map
-        #  # Assume FULL segmentation height here.
-        #  for *_, ids, attrs in self.cub_loader:
-            #  attrs = attrs.numpy()
-            #  cm = self.cub.to_concept_map(attrs, ids)
-            #  yield cm
+    def batches(self):
+        # Get concept map
+        # Assume FULL segmentation height here.
+        for *_, ids, attrs in self.cub_loader:
+            attrs = attrs.numpy()
+            cm = self.cub.to_concept_map(attrs, ids)
+            yield cm
 
     def tensor_batches(self, bgr_mean=None):
         return self.cub_loader

@@ -2,6 +2,11 @@ import settings
 import torch
 import torchvision
 
+
+def noop(*args, **kwargs):
+    pass
+
+
 def loadmodel(hook_fn):
     if settings.MODEL_FILE is None:
         model = torchvision.models.__dict__[settings.MODEL](pretrained=True)

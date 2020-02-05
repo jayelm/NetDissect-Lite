@@ -23,16 +23,16 @@ MAX_FORMULA_LENGTH = 3  # Maximum compositional formula length
 FORCE_DISJUNCTION = False   # Only output disjunctive concepts. (Otherwise, disjunctive concepts are only identified if they have the highest IoU relative to other categories)
 
 INDEX_SUFFIX = INDEX_FILE.split('index')[1].split('.csv')
-if not INDEX_SUFFIX:
+if PROBE_DATASET != 'broden' or not INDEX_SUFFIX:
     INDEX_SUFFIX = ''
 else:
     INDEX_SUFFIX = INDEX_SUFFIX[0]
 
-OUTPUT_FOLDER = f"result/{MODEL}_{DATASET}_{PROBE_DATASET}{INDEX_SUFFIX}_{LEVEL}_{MAX_FORMULA_LENGTH}"  # result will be stored in this folder
+TEST_MODE = INDEX_FILE == 'index_sm.csv'
+
+OUTPUT_FOLDER = f"result/{MODEL}_{DATASET}_{PROBE_DATASET}{INDEX_SUFFIX}_{LEVEL}_{MAX_FORMULA_LENGTH}{'_test' if TEST_MODE else ''}"  # result will be stored in this folder
 
 print(OUTPUT_FOLDER)
-
-TEST_MODE = INDEX_FILE == 'index_sm.csv'
 
 assert LEVEL in {'neuron', 'representation'}
 

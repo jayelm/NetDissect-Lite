@@ -60,7 +60,7 @@ def fix(s):
 
 
 
-def generate_html_summary(ds, layer, mc, maxfeature=None, features=None, thresholds=None,
+def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, thresholds=None,
         imsize=None, imscale=72, tally_result=None,
         gridwidth=None, gap=3, limit=None, force=False, verbose=False):
     ed = expdir.ExperimentDirectory(settings.OUTPUT_FOLDER)

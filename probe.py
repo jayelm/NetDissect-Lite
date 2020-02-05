@@ -26,11 +26,11 @@ else:
 # features: list of activations - one 63305 x c x h x w tensor for each feature
 # layer (defined by settings.FEATURE_NAMES; default is just layer4)
 # maxfeature: the maximum activation across the input map for each channel (e.g. for layer 4, there is a 7x7 input map; what's the max value). one 63305 x c tensor for each feature
-features, maxfeature = fo.feature_extraction(model=model)
+features, maxfeature, preds = fo.feature_extraction(model=model)
 
-ranger = tqdm(zip(settings.FEATURE_NAMES, features, maxfeature),
+ranger = tqdm(zip(settings.FEATURE_NAMES, features, maxfeature, preds),
               total=len(settings.FEATURE_NAMES))
-for layer, layer_features, layer_maxfeature in ranger:
+for layer, layer_features, layer_maxfeature, pred in ranger:
     ranger.set_description(f'Layer {layer}')
     if settings.LEVEL == 'neuron':
         #### STEP 2: Calculate threshold
@@ -40,7 +40,7 @@ for layer, layer_features, layer_maxfeature in ranger:
         tally_result, mc = fo.tally(layer_features, thresholds, savepath="tally.csv")
 
         #### STEP 4: generating results
-        vneuron.generate_html_summary(fo.data, layer, mc,
+        vneuron.generate_html_summary(fo.data, layer, pred, mc,
                                       tally_result=tally_result,
                                       maxfeature=layer_maxfeature,
                                       features=layer_features,
@@ -58,9 +58,9 @@ for layer, layer_features, layer_maxfeature in ranger:
         graph = distance.squareform(sim)
         #  adj = fo.compute_adj_list(graph)
         #### STEP 3: Search for concepts
-        records, mc = fo.search_concepts(graph)
+        records, mc = fo.search_concepts(graph, pred)
         vrepr.generate_html_summary(fo.data, layer, records,
-                                    pdists_condensed, mc, thresh, force=True)
+                                    pdists_condensed, pred, mc, thresh, force=True)
 
     if settings.CLEAN:
         clean()

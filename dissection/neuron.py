@@ -61,6 +61,7 @@ class NeuronOperator:
         # extract the max value activaiton for each image
         maxfeatures = [None] * len(settings.FEATURE_NAMES)
         wholefeatures = [None] * len(settings.FEATURE_NAMES)
+        all_preds = [None] * len(settings.FEATURE_NAMES)
         features_size = [None] * len(settings.FEATURE_NAMES)
         features_size_file = os.path.join(settings.OUTPUT_FOLDER, "feature_size.npy")
 
@@ -68,26 +69,26 @@ class NeuronOperator:
             skip = True
             mmap_files =  [os.path.join(settings.OUTPUT_FOLDER, "%s.mmap" % feature_name)  for feature_name in  settings.FEATURE_NAMES]
             mmap_max_files = [os.path.join(settings.OUTPUT_FOLDER, "%s_max.mmap" % feature_name) for feature_name in settings.FEATURE_NAMES]
+            mmap_pred_files = [os.path.join(settings.OUTPUT_FOLDER, "%s_pred.mmap" % feature_name) for feature_name in settings.FEATURE_NAMES]
             if os.path.exists(features_size_file):
                 features_size = np.load(features_size_file)
             else:
                 skip = False
-            for i, (mmap_file, mmap_max_file) in enumerate(zip(mmap_files,mmap_max_files)):
-                if os.path.exists(mmap_file) and os.path.exists(mmap_max_file) and features_size[i] is not None:
+            for i, (mmap_file, mmap_max_file, mmap_pred_file) in enumerate(zip(mmap_files, mmap_max_files, mmap_pred_files)):
+                if os.path.exists(mmap_file) and os.path.exists(mmap_max_file) and os.path.exists(mmap_pred_file) and features_size[i] is not None:
                     print('loading features %s' % settings.FEATURE_NAMES[i])
                     wholefeatures[i] = np.memmap(mmap_file, dtype=np.float32, mode='r', shape=tuple(features_size[i]))
                     maxfeatures[i] = np.memmap(mmap_max_file, dtype=np.float32, mode='r', shape=tuple(features_size[i][:2]))
+                    all_preds[i] = np.memmap(mmap_pred_file, dtype=np.int64, mode='r', shape=(features_size[i][0], 2))
                 else:
                     print('file missing, loading from scratch')
                     skip = False
             if skip:
-                return wholefeatures, maxfeatures
+                return wholefeatures, maxfeatures, all_preds
 
         num_batches = (len(loader.indexes) + loader.batch_size - 1) / loader.batch_size
-        for batch_idx,batch in tqdm(enumerate(loader.tensor_batches(bgr_mean=self.mean)), desc='Extracting features', total=int(np.ceil(num_batches))):
+        for batch_idx, (inp, *rest) in tqdm(enumerate(loader.tensor_batches(bgr_mean=self.mean)), desc='Extracting features', total=int(np.ceil(num_batches))):
             del features_blobs[:]
-            inp = batch[0]
-            batch_size = len(inp)
             if settings.PROBE_DATASET == 'broden':
                 # Unused for CUB - tensors already
                 inp = torch.from_numpy(inp[:, ::-1, :, :].copy())
@@ -95,11 +96,29 @@ class NeuronOperator:
             if settings.GPU:
                 inp = inp.cuda()
             with torch.no_grad():
-                logit = model.forward(inp)
-            while np.isnan(logit.data.cpu().max()):
-                print("nan") #which I have no idea why it will happen
+                logits = model.forward(inp)
+
+            while np.isnan(logits.data.cpu().max()):
+                print("nan", dtype=np.int64)
                 del features_blobs[:]
-                logit = model.forward(inp)
+                logits = model.forward(inp)
+
+            preds = logits.argmax(1).cpu()
+            if settings.PROBE_DATASET == 'cub':
+                # Targets are provided
+                targets = rest[0]
+            else:
+                # Model was not trained to predict
+                targets = preds
+
+            if all_preds[0] is None:
+                for i, feat_batch in enumerate(features_blobs):
+                    size_preds = (len(loader.indexes), 2)
+                    if memmap:
+                        all_preds[i] = np.memmap(mmap_pred_files[i], dtype=np.int64, mode='w+', shape=size_preds)
+                    else:
+                        all_preds[i] = np.zeros(size_preds, dtype=np.int64)
+
             if maxfeatures[0] is None:
                 # initialize the feature variable
                 for i, feat_batch in enumerate(features_blobs):
@@ -108,6 +127,7 @@ class NeuronOperator:
                         maxfeatures[i] = np.memmap(mmap_max_files[i],dtype=np.float32,mode='w+',shape=size_features)
                     else:
                         maxfeatures[i] = np.zeros(size_features)
+
             if len(feat_batch.shape) == 4 and wholefeatures[0] is None:
                 # initialize the feature variable
                 for i, feat_batch in enumerate(features_blobs):
@@ -118,6 +138,7 @@ class NeuronOperator:
                         wholefeatures[i] = np.memmap(mmap_files[i], dtype=np.float32, mode='w+', shape=size_features)
                     else:
                         wholefeatures[i] = np.zeros(size_features)
+
             np.save(features_size_file, features_size)
             start_idx = batch_idx*settings.BATCH_SIZE
             end_idx = min((batch_idx+1)*settings.BATCH_SIZE, len(loader.indexes))
@@ -129,9 +150,10 @@ class NeuronOperator:
                     maxfeatures[i][start_idx:end_idx] = np.max(feat_batch, 2)
                 elif len(feat_batch.shape) == 2:
                     maxfeatures[i][start_idx:end_idx] = feat_batch
+                all_preds[i][start_idx:end_idx] = np.stack((preds, targets), 1)
         if len(feat_batch.shape) == 2:
             wholefeatures = maxfeatures
-        return wholefeatures,maxfeatures
+        return wholefeatures,maxfeatures, all_preds
 
     def quantile_threshold(self, features, savepath=''):
         qtpath = os.path.join(settings.OUTPUT_FOLDER, savepath)

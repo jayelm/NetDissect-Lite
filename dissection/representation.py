@@ -70,7 +70,7 @@ class ReprOperator(NeuronOperator):
             adj[i] = np.argwhere(graph[i]).squeeze(1)
         return adj
 
-    def search_concepts(self, graph):
+    def search_concepts(self, graph, preds):
         if settings.IMAGES is None:
             max_i = graph.shape[0]
             sfx = ''
@@ -92,7 +92,7 @@ class ReprOperator(NeuronOperator):
                                            ahead=settings.TALLY_AHEAD, start=0,
                                            end=self.data.size())
 
-        mc = MaskCatalog(pf)
+        mc = MaskCatalog(pf, cache=False, rle=False)
 
         if os.path.exists(input_fname):
             print(f"Returning cached {input_fname}")
@@ -124,6 +124,8 @@ class ReprOperator(NeuronOperator):
                     'category_noncomp' : best_noncomp_cat,
                     'label_noncomp' : best_noncomp_name,
                     'score_noncomp' : best_noncomp_sim,
+                    'pred_label': preds[i, 0],
+                    'true_label': preds[i, 1]
                 }
                 records.append(r)
                 pbar.update()

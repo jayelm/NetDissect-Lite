@@ -37,7 +37,7 @@ def get_mask_global(masks, f):
 class MaskCatalog:
     # A map from
     # label -> [list of Option[np.arrays]]
-    def __init__(self, prefetcher, cache=True):
+    def __init__(self, prefetcher, cache=True, rle=True):
         # Loop through prefetcher batches, collecting
         self.prefetcher = prefetcher
         # initialize the masks dictionary.
@@ -62,7 +62,7 @@ class MaskCatalog:
             self.mask_shape = (224, 224)
 
         rle_masks_file = os.path.join(settings.DATA_DIRECTORY, f"rle_masks{settings.INDEX_SUFFIX}.pkl")
-        if os.path.exists(rle_masks_file):
+        if cache and os.path.exists(rle_masks_file):
             with open(rle_masks_file, 'rb') as f:
                 cache = pickle.load(f)
                 self.masks = cache['masks']
@@ -78,11 +78,12 @@ class MaskCatalog:
                         label_group = concept_map[cat]
                         shape = np.shape(label_group)
                         if len(shape) % 2 == 0:
-                            label_group = [label_group]
+                            label_group = np.array([label_group])
                         if len(shape) < 2:
                             # Scalar
                             for feat in label_group:
-                                if feat == 0:
+                                if feat == 0 and settings.PROBE_DATASET == 'broden':
+                                    # FIXME: For cub, we can't use 0 feats
                                     # Somehow 0 is a feature?
                                     # Just continue - it exists in index.csv under scenes but not in c_scenes
                                     continue
@@ -100,7 +101,7 @@ class MaskCatalog:
                             feats = np.unique(label_group.ravel())
                             for feat in feats:
                                 # 0 is not a feature
-                                if feat == 0:
+                                if feat == 0 and settings.PROBE_DATASET == 'broden':
                                     continue
                                 if feat not in self.masks:
                                     self.initialize_mask(feat, 'pixel')
@@ -124,19 +125,22 @@ class MaskCatalog:
                                 self.img2cat[img_index][cat_i] = True
 
             # Compact masks
-            for feat, mask in tqdm(self.masks.items(), total=len(self.masks), desc='RLE'):
-                if mask.ndim == 1:
-                    mask = mask[:, np.newaxis, np.newaxis]
-                    mask = np.broadcast_to(mask, (mask.shape[0], *self.mask_shape))
-                mask_flat = mask.reshape((mask.shape[0] * mask.shape[1], mask.shape[2]))
-                mask_flat = np.asfortranarray(mask_flat)
-                self.masks[feat] = cmask.encode(mask_flat)
-            with open(rle_masks_file, 'wb') as f:
-                pickle.dump({
-                    'masks': self.masks,
-                    'img2label': self.img2label,
-                    'img2cat': self.img2cat
-                }, f)
+            if rle:
+                # Convert to run-length encoding
+                for feat, mask in tqdm(self.masks.items(), total=len(self.masks), desc='RLE'):
+                    if mask.ndim == 1:
+                        mask = mask[:, np.newaxis, np.newaxis]
+                        mask = np.broadcast_to(mask, (mask.shape[0], *self.mask_shape))
+                    mask_flat = mask.reshape((mask.shape[0] * mask.shape[1], mask.shape[2]))
+                    mask_flat = np.asfortranarray(mask_flat)
+                    self.masks[feat] = cmask.encode(mask_flat)
+            if cache:
+                with open(rle_masks_file, 'wb') as f:
+                    pickle.dump({
+                        'masks': self.masks,
+                        'img2label': self.img2label,
+                        'img2cat': self.img2cat
+                    }, f)
 
         self.labels = sorted(list(self.masks.keys()))
 
