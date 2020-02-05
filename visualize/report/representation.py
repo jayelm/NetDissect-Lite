@@ -99,6 +99,9 @@ def generate_html_summary(ds, layer, records, dist, preds, mc, thresh,
     for i, record in enumerate(
             sorted(rendered_order, key=lambda record: -float(record['score']))):
         record['score-order'] = i
+    for i, record in enumerate(
+            sorted(rendered_order, key=lambda record: -int(record['pred_label'] == record['true_label']))):
+        record['correct-order'] = i
     for label_order, record in enumerate(tqdm(rendered_order, desc='Images')):
         inp = int(record['input'])
         imfn = 'image/%s%s-%04d.jpg' % (
@@ -190,8 +193,8 @@ def generate_html_summary(ds, layer, records, dist, preds, mc, thresh,
         # Generate the wrapper HTML
         correct = record["pred_label"] == record["true_label"]
         graytext = ' lowscore' if float(record['score']) < settings.SCORE_THRESHOLD else ''
-        html.append('><div class="unit%s" data-order="%d %d %d">' %
-                (graytext, label_order, record['score-order'], inp))
+        html.append('><div class="unit%s" data-order="%d %d %d %d">' %
+                (graytext, label_order, record['score-order'], inp, record['correct-order']))
         html.append('<div class="unitlabel">%s</div>' % fix(record['label']))
         html.append('<div class="info">' +
             '<span class="layername">%s</span> ' % layer +
@@ -343,6 +346,7 @@ sort by
 <span class="sortby currentsort" data-index="0">label</span>
 <span class="sortby" data-index="1">score</span>
 <span class="sortby" data-index="2">unit</span>
+<span class="sortby" data-index="3">correct</span>
 </div>
 '''
 
