@@ -99,7 +99,7 @@ class NeuronOperator:
                 logits = model.forward(inp)
 
             while np.isnan(logits.data.cpu().max()):
-                print("nan", dtype=np.int64)
+                print("nan")
                 del features_blobs[:]
                 logits = model.forward(inp)
 
@@ -153,7 +153,7 @@ class NeuronOperator:
                 all_preds[i][start_idx:end_idx] = np.stack((preds, targets), 1)
         if len(feat_batch.shape) == 2:
             wholefeatures = maxfeatures
-        return wholefeatures,maxfeatures, all_preds
+        return wholefeatures, maxfeatures, all_preds
 
     def quantile_threshold(self, features, savepath=''):
         qtpath = os.path.join(settings.OUTPUT_FOLDER, savepath)
