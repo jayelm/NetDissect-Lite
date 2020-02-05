@@ -46,9 +46,11 @@ def generate_html_summary(ds, layer, records, dist, preds, mc, thresh,
     # For each unit, images that get the highest activation (anywhere?), in
     # descending order.
     #  top = np.argsort(maxfeature, 0)[:-1 - settings.TOPN:-1, :].transpose()
+    r_correct = np.array([r['pred_label'] == r['true_label'] for r in records])
     ed.ensure_dir('html','image')
     html = [html_prefix]
     html.append(f'<h3>{settings.OUTPUT_FOLDER}</h3>')
+    html.append(f'<p>Accuracy on these examples: {r_correct.sum()}/{len(r_correct)} ({r_correct.mean() * 100:.3f}%%)</p>')
     barfn = f'image/{expdir.fn_safe(layer)}-threshold.svg'
     pairwise_histogram(dist, os.path.join(ed.directory, 'html', barfn))
     html.extend([
@@ -193,8 +195,8 @@ def generate_html_summary(ds, layer, records, dist, preds, mc, thresh,
         # Generate the wrapper HTML
         correct = record["pred_label"] == record["true_label"]
         graytext = ' lowscore' if float(record['score']) < settings.SCORE_THRESHOLD else ''
-        html.append('><div class="unit%s" data-order="%d %d %d %d">' %
-                (graytext, label_order, record['score-order'], inp, record['correct-order']))
+        html.append('><div class="unit%s" data-order="%d %d %d %d %d">' %
+                (graytext, label_order, record['score-order'], inp, record['correct-order'], -record['correct-order']))
         html.append('<div class="unitlabel">%s</div>' % fix(record['label']))
         html.append('<div class="info">' +
             '<span class="layername">%s</span> ' % layer +
@@ -347,6 +349,7 @@ sort by
 <span class="sortby" data-index="1">score</span>
 <span class="sortby" data-index="2">unit</span>
 <span class="sortby" data-index="3">correct</span>
+<span class="sortby" data-index="4">incorrect</span>
 </div>
 '''
 
