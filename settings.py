@@ -72,44 +72,32 @@ if DATASET == 'places365':
     NUM_CLASSES = 365
 elif DATASET == 'imagenet':
     NUM_CLASSES = 1000
+elif DATASET == 'cub':
+    NUM_CLASSES = 200
+
+if MODEL not in {'resnet18', 'renset101', 'conv4'}:
+    raise NotImplementedError(f"model = {MODEL}")
+
 if MODEL == 'resnet18':
     FEATURE_NAMES = ['layer4']
-    if DATASET == 'places365':
-        MODEL_FILE = 'zoo/resnet18_places365.pth.tar'
-        MODEL_PARALLEL = True
-    elif DATASET == 'imagenet':
-        MODEL_FILE = None
-        MODEL_PARALLEL = False
-    elif DATASET == 'cub':
-        MODEL_FILE = 'zoo/trained/resnet18_cub_finetune/model_best.pth'
-        MODEL_PARALLEL = False
-    elif DATASET is None:
-        MODEL_FILE = '<UNTRAINED>'
-        MODEEL_PARALLEL = False
 elif MODEL == 'resnet101':
     FEATURE_NAMES = ['layer4']
-    if DATASET == 'places365':
-        MODEL_FILE = 'zoo/resnet101_places365.pth.tar'
-        MODEL_PARALLEL = True
-    elif DATASET == 'imagenet':
-        MODEL_FILE = None
-        MODEL_PARALLEL = False
-    elif DATASET == 'cub':
-        MODEL_FILE = 'zoo/trained/resnet101_cub_finetune/model_best.pth'
-        MODEL_PARALLEL = False
-    elif DATASET is None:
-        MODEL_FILE = '<UNTRAINED>'
-        MODEEL_PARALLEL = False
-elif MODEL == 'densenet161':
-    FEATURE_NAMES = ['features']
-    if DATASET == 'places365':
-        MODEL_FILE = 'zoo/whole_densenet161_places365_python36.pth.tar'
-        MODEL_PARALLEL = False
-elif MODEL == 'resnet50':
+elif MODEL == 'conv4':
+    # Not sure...
     FEATURE_NAMES = ['layer4']
-    if DATASET == 'places365':
-        MODEL_FILE = 'zoo/whole_resnet50_places365_python36.pth.tar'
-        MODEL_PARALLEL = False
+
+if DATASET == 'places365':
+    MODEL_FILE = f'zoo/{MODEL}_places365.pth.tar'
+    MODEL_PARALLEL = True
+elif DATASET == 'imagenet':
+    MODEL_FILE = None
+    MODEL_PARALLEL = False
+elif DATASET == 'cub':
+    MODEL_FILE = f'zoo/trained/{MODEL}_cub_finetune/model_best.pth'
+    MODEL_PARALLEL = False
+elif DATASET is None:
+    MODEL_FILE = '<UNTRAINED>'
+    MODEL_PARALLEL = False
 
 if TEST_MODE:
     WORKERS = 1

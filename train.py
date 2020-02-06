@@ -62,10 +62,13 @@ if __name__ == '__main__':
         inf = 512
     elif settings.MODEL == 'resnet101':
         inf = 2048
+    elif settings.MODEL == 'conv4':
+        inf = 6272
     else:
         raise NotImplementedError
 
     model.fc = nn.Linear(in_features=inf, out_features=datasets['train'].n_classes)
+
     # Re-move the model on/off GPU
     if settings.GPU:
         model = model.cuda()
