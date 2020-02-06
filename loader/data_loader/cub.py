@@ -202,6 +202,10 @@ def load_cub(data_dir, random_state=None, max_classes=None, train_only=False,
         attrs.append(id2attrs[image_id])
     assert all(i == j for i, j in zip(img_ids, range(len(classes))))
 
+    # Imgs is not an np array since it is ragged
+    classes = np.array(classes)
+    attrs = np.array(attrs)
+
     tloader = TransformLoader(224)
     train_transform = tloader.get_composed_transform(train_augment)
     if train_only:
@@ -272,13 +276,14 @@ class CUBDataset:
         return self.attr_names
         #  return PARTS
 
-    def attr_to_cm(self, attr, idx):
+    def attr_to_cm(self, attr, idx, cl):
         is_present = np.argwhere(attr).squeeze()
         cm = {cat: [] for cat in self.attr_categories}
         for i in is_present:
             i_cat = self.attr2cat[i]
             cm[i_cat].append(i)
         cm['i'] = idx
+        cm['cl'] = cl
         # Assume FULL segmentation mask
         cm['sh'] = 224
         cm['sw'] = 224
@@ -289,8 +294,8 @@ class CUBDataset:
         fname = os.path.join(settings.DATA_DIRECTORY, 'images', fname)
         return fname
 
-    def to_concept_map(self, attrs, ids):
-        return [self.attr_to_cm(a, i) for a, i in zip(attrs, ids)]
+    def to_concept_map(self, attrs, ids, cl):
+        return [self.attr_to_cm(a, i, c) for a, i, c in zip(attrs, ids, cl)]
 
     def __getitem__(self, i):
         img = self.imgs[i]
@@ -372,9 +377,9 @@ class CUBSegmentationPrefetcher:
     def batches(self):
         # Get concept map
         # Assume FULL segmentation height here.
-        for *_, ids, attrs in self.cub_loader:
+        for img, cl, ids, attrs in self.cub_loader:
             attrs = attrs.numpy()
-            cm = self.cub.to_concept_map(attrs, ids)
+            cm = self.cub.to_concept_map(attrs, ids, cl)
             yield cm
 
     def tensor_batches(self, bgr_mean=None):

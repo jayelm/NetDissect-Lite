@@ -52,6 +52,13 @@ class MaskCatalog:
                 #  self.masks = pickle.load(f)
         self.masks = {}
         self.data_size = self.prefetcher.segmentation.size()
+        if hasattr(self.prefetcher.segmentation, 'classes'):
+            self.classes = self.prefetcher.segmentation.classes
+            self.n_classes = len(np.unique(self.classes))
+        else:
+            self.classes = np.zeros(self.data_size, dtype=np.int64)
+            self.n_classes = 1
+
         self.categories = self.prefetcher.segmentation.category_names()
         self.n_labels = len(self.prefetcher.segmentation.primary_categories_per_index())
         self.img2cat = np.zeros((self.data_size, len(self.categories)), dtype=np.bool)
@@ -146,7 +153,6 @@ class MaskCatalog:
 
     def get_mask(self, f):
         return get_mask_global(self.masks, f)
-
 
     def initialize_mask(self, i, mask_type):
         if i in self.masks:

@@ -50,7 +50,7 @@ def generate_html_summary(ds, layer, records, dist, preds, mc, thresh,
     ed.ensure_dir('html','image')
     html = [html_prefix]
     html.append(f'<h3>{settings.OUTPUT_FOLDER}</h3>')
-    html.append(f'<p>Accuracy on these examples: {r_correct.sum()}/{len(r_correct)} ({r_correct.mean() * 100:.3f}%%)</p>')
+    html.append(f'<p>Accuracy on these examples: {r_correct.sum()}/{len(r_correct)} ({r_correct.mean() * 100:.3f}%)</p>')
     barfn = f'image/{expdir.fn_safe(layer)}-threshold.svg'
     pairwise_histogram(dist, os.path.join(ed.directory, 'html', barfn))
     html.extend([

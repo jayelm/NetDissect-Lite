@@ -100,6 +100,8 @@ class ReprOperator(NeuronOperator):
             return input_df.to_dict('records'), mc
 
         g['graph'] = graph
+        g['classes'] = mc.classes
+        g['n_classes'] = mc.n_classes
         g['label2img'] = mc.img2label.T
         g['n_labels'] = g['label2img'].shape[0]
 
@@ -108,24 +110,25 @@ class ReprOperator(NeuronOperator):
         mp_args = [(i, ) for i in range(max_i)]
         with mp.Pool(settings.PARALLEL) as p, tqdm(total=max_i, desc='Images') as pbar:
             for i, best, best_noncomp in p.imap_unordered(ReprOperator.compute_best_label, mp_args):
-                best_lab, best_sim = best
-                best_noncomp_lab, best_noncomp_sim = best_noncomp
+                # Name the label
+                best['label'], best['category'] = (
+                    best['label'].to_str(lambda name: self.data.name(None, name)),
+                    best['label'].to_str(lambda name: categories[pcats[name]])
+                )
 
-                best_name = best_lab.to_str(lambda name: self.data.name(None, name))
-                best_cat = best_lab.to_str(lambda name: categories[pcats[name]])
-                best_noncomp_name = best_noncomp_lab.to_str(lambda name: self.data.name(None, name))
-                best_noncomp_cat = best_noncomp_lab.to_str(lambda name: categories[pcats[name]])
+                best_noncomp['label'], best_noncomp['category'] = (
+                    best_noncomp['label'].to_str(lambda name: self.data.name(None, name)),
+                    best_noncomp['label'].to_str(lambda name: categories[pcats[name]])
+                )
+                best_noncomp = {f'{k}_noncomp': v for k, v in best_noncomp.items()}
 
                 r = {
                     'input': i,
-                    'category': best_cat,
-                    'label': best_name,
-                    'score': best_sim,
-                    'category_noncomp' : best_noncomp_cat,
-                    'label_noncomp' : best_noncomp_name,
-                    'score_noncomp' : best_noncomp_sim,
                     'pred_label': preds[i, 0],
-                    'true_label': preds[i, 1]
+                    'true_label': preds[i, 1],
+                    'correct': preds[i, 0] == preds[i, 1],
+                    **best,
+                    **best_noncomp,
                 }
                 records.append(r)
                 pbar.update()
@@ -174,7 +177,35 @@ class ReprOperator(NeuronOperator):
             formulas = dict(Counter(formulas).most_common(settings.BEAM_SIZE))
 
         best = Counter(formulas).most_common(1)[0]
+
+        best = {
+            'label': best[0],
+            'score': best[1],
+            **ReprOperator.compute_label_statistics(best[0])
+        }
+
+        best_noncomp = {
+            'label': best_noncomp[0],
+            'score': best_noncomp[1],
+            **ReprOperator.compute_label_statistics(best_noncomp[0])
+        }
+
         return args[0], best, best_noncomp
+
+
+    @staticmethod
+    def compute_label_statistics(lab):
+        """
+        Compute some label statistics
+        """
+        labels = ReprOperator.get_labels(lab)
+        coverage = labels.mean()
+        class_coverage = len(np.unique(g['classes'][labels])) / g['n_classes']
+        return {
+            'coverage': coverage,
+            'class_coverage': class_coverage,
+        }
+
 
     @staticmethod
     def get_labels(f, labels=None):
