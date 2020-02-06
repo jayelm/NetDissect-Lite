@@ -161,7 +161,11 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
                 if vis.shape[:2] != (imsize, imsize):
                     vis = np.array(Image.fromarray(vis).resize((imsize, imsize), resample=Image.BILINEAR))
                 vis = np.round(vis).astype(np.uint8)
-                img_ann.append((vis, None, None))
+                img_ann.append({
+                    'img': vis,
+                    'labels': [None],
+                    'mark': None
+                })
             tiled = create_tiled_image(img_ann, gridheight, gridwidth, ds, imsize=imsize, gap=gap)
             imwrite(ed.filename('html/' + imfn), tiled)
 
@@ -200,7 +204,11 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
 
                 img_masked = add_colored_masks(img, feat_mask, unit_mask)
 
-                mask_imgs_ann.append((img_masked, lbl, None))
+                mask_imgs_ann.append({
+                    'img': img_masked,
+                    'labels': [lbl],
+                    'mark': None
+                })
             row2fn = 'image/%s%s-%04d-maskimg.jpg' % (expdir.fn_safe(layer), gridname, unit)
             tiled = create_tiled_image(mask_imgs_ann, gridheight, gridwidth, ds, imsize=imsize, gap=gap)
             imwrite(ed.filename('html/' + row2fn), tiled)
@@ -236,7 +244,11 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
 
                 img_masked = add_colored_masks(img, feat_mask, unit_mask)
 
-                mask_imgs_ann.append((img_masked, lbl, None))
+                mask_imgs_ann.append({
+                    'img': img_masked,
+                    'labels': [lbl],
+                    'mark': None
+                })
 
             tiled = create_tiled_image(mask_imgs_ann, gridheight, gridwidth, ds, imsize=imsize, gap=gap)
             imwrite(ed.filename('html/' + row3fn), tiled)

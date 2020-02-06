@@ -113,7 +113,11 @@ def generate_html_summary(ds, layer, records, dist, preds, mc, thresh,
                 print('Visualizing %s unit %d' % (layer, inp))
 
             # ==== ROW 1 - most similar images ====
-            imgs = [(inp, None, 0)]
+            imgs = [{
+                'img': inp,
+                'labels': [None, str(record['true_label'])],
+                'mark': 0
+            }]
             # Get the closest images according to distance matrix
             n_img = mc.img2label.shape[0]
             oth_dists = Counter()
@@ -129,7 +133,11 @@ def generate_html_summary(ds, layer, records, dist, preds, mc, thresh,
                     continue
                 lab = f"{-sim:.2f}"
                 mark = (0, 255, 0) if -sim < thresh else (255, 0, 0)
-                imgs.append((index, lab, mark))
+                imgs.append({
+                    'img': index,
+                    'labels': [lab, str(preds[index, 1])],
+                    'mark': mark
+                })
 
             tiled = create_tiled_image(imgs, gridheight, gridwidth, ds, imsize=imsize, gap=gap)
             imwrite(ed.filename('html/' + imfn), tiled)
@@ -156,7 +164,11 @@ def generate_html_summary(ds, layer, records, dist, preds, mc, thresh,
                         sim = dist[n_oth_i]
                         mark = (0, 255, 0) if sim < thresh else (255, 0, 0)
                         label = f"{sim:.2f}"
-                        mask_imgs_ann.append((mi, label, mark))
+                        mask_imgs_ann.append({
+                            'img': mi,
+                            'labels': [label, str(preds[mi, 1])],
+                            'mark': mark
+                        })
                     tiled = create_tiled_image(mask_imgs_ann, gridheight, gridwidth, ds, imsize=imsize, gap=gap)
                     imwrite(ed.filename('html/' + row2fn), tiled)
 
@@ -187,7 +199,11 @@ def generate_html_summary(ds, layer, records, dist, preds, mc, thresh,
                         sim = dist[n_oth_i]
                         mark = (0, 255, 0) if sim < thresh else (255, 0, 0)
                         label = f"{sim:.2f}"
-                        mask_imgs_ann.append((mi, label, mark))
+                        mask_imgs_ann.append({
+                            'img': mi,
+                            'labels': [label, str(preds[mi, 1])],
+                            'mark': mark
+                        })
                     tiled = create_tiled_image(mask_imgs_ann, gridheight, gridwidth, ds, imsize=imsize, gap=gap)
                     imwrite(ed.filename('html/' + row3fn), tiled)
                     break

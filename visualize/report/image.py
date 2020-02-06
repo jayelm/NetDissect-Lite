@@ -1,10 +1,13 @@
 import settings
 import numpy as np
-from PIL import Image, ImageDraw, ImageOps
+from PIL import Image, ImageDraw, ImageOps, ImageFont
 from imageio import imread
 import seaborn as sns
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
+
+
+ARIAL = ImageFont.truetype('Arial.ttf', size=20)
 
 
 def pairwise_histogram(dist, fname, n=10000):
@@ -29,7 +32,10 @@ def create_tiled_image(imgs, gridheight, gridwidth, ds, imsize=112, gap=3):
         ((imsize + gap) * gridheight - gap,
          (imsize + gap) * gridwidth - gap, 3), 255, dtype='uint8')
     # TODO: Make imgs a dict
-    for x, (img, label, mark) in enumerate(imgs):
+    for x, img_dict in enumerate(imgs):
+        img = img_dict['img']
+        labels = img_dict['labels']
+        mark = img_dict['mark']
         row = x // gridwidth
         col = x % gridwidth
         if not isinstance(img, np.ndarray):
@@ -46,9 +52,10 @@ def create_tiled_image(imgs, gridheight, gridwidth, ds, imsize=112, gap=3):
 
         if mark is not None:
             vis = ImageOps.expand(vis, border=10, fill=mark).resize((imsize, imsize), resample=Image.BILINEAR)
-        if label is not None:
+        label = '\n'.join('' if l is None else l for l in labels)
+        if label:
             draw = ImageDraw.Draw(vis)
-            draw.text((0, 0), label)
+            draw.text((0, 0), label, font=ARIAL, fill=(0, 0, 0, 255))
         vis = np.array(vis)
         tiled[row*(imsize+gap):row*(imsize+gap)+imsize,
               col*(imsize+gap):col*(imsize+gap)+imsize,:] = vis
