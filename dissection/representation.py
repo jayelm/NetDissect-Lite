@@ -181,29 +181,35 @@ class ReprOperator(NeuronOperator):
         best = {
             'label': best[0],
             'score': best[1],
-            **ReprOperator.compute_label_statistics(best[0])
+            **ReprOperator.compute_label_statistics(links, best[0])
         }
 
         best_noncomp = {
             'label': best_noncomp[0],
             'score': best_noncomp[1],
-            **ReprOperator.compute_label_statistics(best_noncomp[0])
+            **ReprOperator.compute_label_statistics(links, best_noncomp[0])
         }
 
         return args[0], best, best_noncomp
 
 
     @staticmethod
-    def compute_label_statistics(lab):
+    def compute_label_statistics(links, lab):
         """
         Compute some label statistics
         """
+        neighborhood_coverage = links.mean()
+        neighborhood_class_coverage = links.mean()
+
         labels = ReprOperator.get_labels(lab)
-        coverage = labels.mean()
-        class_coverage = len(np.unique(g['classes'][labels])) / g['n_classes']
+        label_coverage = labels.mean()
+        label_class_coverage = len(np.unique(g['classes'][labels])) / g['n_classes']
+
         return {
-            'coverage': coverage,
-            'class_coverage': class_coverage,
+            'neighborhood_coverage': neighborhood_coverage,
+            'neighborhood_class_coverage': neighborhood_class_coverage,
+            'label_coverage': label_coverage,
+            'label_class_coverage': label_class_coverage,
         }
 
 
