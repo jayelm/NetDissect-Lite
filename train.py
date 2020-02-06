@@ -30,7 +30,7 @@ if __name__ == '__main__':
                         help='Dataset to load from')
     parser.add_argument('--batch_size', default=32,
                         type=int, help='Train batch size')
-    parser.add_argument('--epochs', default=100, type=int,
+    parser.add_argument('--epochs', default=50, type=int,
                         help='Training epochs')
     parser.add_argument('--seed', default=42, type=int,
                         help='Default seed')
@@ -58,7 +58,14 @@ if __name__ == '__main__':
 
     model = loadmodel(None)
     # Replace the last layer
-    model.fc = nn.Linear(in_features=512, out_features=datasets['train'].n_classes)
+    if settings.MODEL == 'resnet18':
+        inf = 512
+    elif settings.MODEL == 'resnet101':
+        inf = 2048
+    else:
+        raise NotImplementedError
+
+    model.fc = nn.Linear(in_features=inf, out_features=datasets['train'].n_classes)
     # Re-move the model on/off GPU
     if settings.GPU:
         model = model.cuda()

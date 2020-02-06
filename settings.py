@@ -86,6 +86,20 @@ if MODEL == 'resnet18':
     elif DATASET is None:
         MODEL_FILE = '<UNTRAINED>'
         MODEEL_PARALLEL = False
+elif MODEL == 'resnet101':
+    FEATURE_NAMES = ['layer4']
+    if DATASET == 'places365':
+        MODEL_FILE = 'zoo/resnet101_places365.pth.tar'
+        MODEL_PARALLEL = True
+    elif DATASET == 'imagenet':
+        MODEL_FILE = None
+        MODEL_PARALLEL = False
+    elif DATASET == 'cub':
+        MODEL_FILE = 'zoo/trained/resnet101_cub_finetune/model_best.pth'
+        MODEL_PARALLEL = False
+    elif DATASET is None:
+        MODEL_FILE = '<UNTRAINED>'
+        MODEEL_PARALLEL = False
 elif MODEL == 'densenet161':
     FEATURE_NAMES = ['features']
     if DATASET == 'places365':
