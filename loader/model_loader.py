@@ -82,7 +82,7 @@ class ConvBlock(nn.Module):
         # self.BN.reset_parameters()
 
 
-def loadmodel(hook_fn):
+def loadmodel(hook_fn, hook_modules=None):
     if settings.MODEL == 'conv4':
         model_fn = Conv4
     else:
@@ -108,7 +108,18 @@ def loadmodel(hook_fn):
             model = checkpoint
     if hook_fn is not None:
         for name in settings.FEATURE_NAMES:
-            model._modules.get(name).register_forward_hook(hook_fn)
+            if isinstance(name, list):
+                # Iteratively retrive the module
+                hook_model = model
+                for n in name:
+                    hook_model = hook_model._modules.get(n)
+            else:
+                hook_model = model._modules.get(name)
+            if hook_model is None:
+                raise ValueError(f"Couldn't find feature {name}")
+            if hook_modules is not None:
+                hook_modules.append(hook_model)
+            hook_model.register_forward_hook(hook_fn)
     if settings.GPU:
         model.cuda()
     model.eval()

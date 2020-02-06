@@ -34,7 +34,7 @@ if __name__ == '__main__':
                         help='Training epochs')
     parser.add_argument('--seed', default=42, type=int,
                         help='Default seed')
-    parser.add_argument('--save_dir', default='./zoo/trained/resnet18_cub_finetune',
+    parser.add_argument('--save_dir', default=f'./zoo/trained/{settings.MODEL}_cub_finetune',
                         help='Where to save the model')
     parser.add_argument('--debug', action='store_true')
 

@@ -7,6 +7,7 @@ import numpy
 from imageio import imread, imwrite
 import visualize.expdir as expdir
 import visualize.bargraph as bargraph
+from visualize.report import html_common
 from visualize.report.image import create_tiled_image, score_histogram
 import settings
 import numpy as np
@@ -62,6 +63,7 @@ def fix(s):
 
 def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, thresholds=None,
         imsize=None, imscale=72, tally_result=None,
+        contributors=None,
         gridwidth=None, gap=3, limit=None, force=False, verbose=False):
     ed = expdir.ExperimentDirectory(settings.OUTPUT_FOLDER)
     print('Generating html summary %s' % ed.filename('html/%s.html' % expdir.fn_safe(layer)))
@@ -74,7 +76,7 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
     # descending order.
     top = np.argsort(maxfeature, 0)[:-1 - settings.TOPN:-1, :].transpose()
     ed.ensure_dir('html','image')
-    html = [html_prefix]
+    html = [html_common.HTML_PREFIX]
     html.append(f'<h3>{settings.OUTPUT_FOLDER}</h3>')
     rendered_order = []
     barfn = 'image/%s-bargraph.svg' % (
@@ -108,6 +110,7 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
             ioufn, ed.basename(), layer),
         '</div>'
         ])
+    html.append(html_common.FILTERBOX)
     html.append('<div class="gridheader">')
     html.append('<div class="layerinfo">')
     html.append('%d/%d units covering %d concepts with IoU &ge; %.2f' % (
@@ -118,7 +121,7 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
             if float(record['score']) >= settings.SCORE_THRESHOLD)),
         settings.SCORE_THRESHOLD))
     html.append('</div>')
-    html.append(html_sortheader)
+    html.append(html_common.get_sortheader(['score', 'unit']))
     html.append('</div>')
 
     if gridwidth is None:
@@ -135,7 +138,7 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
     for i, record in enumerate(
             sorted(rendered_order, key=lambda record: -float(record['score']))):
         record['score-order'] = i
-    for label_order, record in enumerate(tqdm(rendered_order, desc='Images')):
+    for label_order, record in enumerate(tqdm(rendered_order, desc='Visualizing neurons')):
         unit = int(record['unit']) - 1 # zero-based unit indexing
         imfn = 'image/%s%s-%04d.jpg' % (
                 expdir.fn_safe(layer), gridname, unit)
@@ -278,210 +281,6 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
             (row3fn, imscale))
         html.append('</div') # Leave off > to eat spaces
     html.append('></div>')
-    html.extend([html_suffix]);
+    html.extend([html_common.HTML_SUFFIX]);
     with open(ed.filename('html/%s.html' % expdir.fn_safe(layer)), 'w') as f:
         f.write('\n'.join(html))
-
-html_prefix = '''
-<!doctype html>
-<html>
-<head>
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/css/bootstrap.min.css">
-<script src="https://code.jquery.com/jquery-3.2.1.min.js" integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/tether/1.4.0/js/tether.min.js"></script>
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/js/bootstrap.min.js" integrity="sha384-vBWWzlZJ8ea9aCX4pEW3rVHjgjt7zpkNpZk+02D9phzyeVkE+jo0ieGizqPLForn" crossorigin="anonymous"></script>
-<style>
-.unitviz, .unitviz .modal-header, .unitviz .modal-body, .unitviz .modal-footer {
-  font-family: Arial;
-  font-size: 15px;
-}
-.unitgrid {
-  text-align: center;
-  border-spacing: 5px;
-  border-collapse: separate;
-}
-.unitgrid .info {
-  text-align: left;
-}
-.unitgrid .layername {
-  display: none;
-}
-.unitlabel {
-  font-weight: bold;
-  font-size: 150%;
-  text-align: center;
-  line-height: 1;
-}
-.lowscore .unitlabel {
-   color: silver;
-}
-.thumbcrop {
-  overflow: hidden;
-  width: 288px;
-  height: 72px;
-}
-.bluespan {
-    color: blue;
-}
-.redspan {
-    color: red;
-}
-.midrule {
-    margin-top: 1em;
-    margin-bottom: 0.25em;
-}
-.unit {
-  display: inline-block;
-  background: white;
-  padding: 3px;
-  margin: 2px;
-  box-shadow: 0 5px 12px grey;
-}
-.iou {
-  display: inline-block;
-  float: right;
-}
-.modal .big-modal {
-  width:auto;
-  max-width:90%;
-  max-height:80%;
-}
-.modal-title {
-  display: inline-block;
-}
-.footer-caption {
-  float: left;
-  width: 100%;
-}
-.histogram {
-  text-align: center;
-  margin-top: 3px;
-}
-.img-wrapper {
-  text-align: center;
-}
-.big-modal img {
-  max-height: 60vh;
-}
-.img-scroller {
-  overflow-x: scroll;
-}
-.img-scroller .img-fluid {
-  max-width: initial;
-}
-.gridheader {
-  font-size: 12px;
-  margin-bottom: 10px;
-  margin-left: 30px;
-  margin-right: 30px;
-}
-.gridheader:after {
-  content: '';
-  display: table;
-  clear: both;
-}
-.sortheader {
-  float: right;
-  cursor: default;
-}
-.layerinfo {
-  float: left;
-}
-.sortby {
-  text-decoration: underline;
-  cursor: pointer;
-}
-.sortby.currentsort {
-  text-decoration: none;
-  font-weight: bold;
-  cursor: default;
-}
-</style>
-</head>
-<body class="unitviz">
-<div class="container-fluid">
-'''
-
-html_sortheader = '''
-<div class="sortheader">
-sort by
-<span class="sortby currentsort" data-index="0">label</span>
-<span class="sortby" data-index="1">score</span>
-<span class="sortby" data-index="2">unit</span>
-</div>
-'''
-
-html_suffix = '''
-</div>
-<div class="modal" id="lightbox">
-  <div class="modal-dialog big-modal" role="document">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title"></h5>
-        <button type="button" class="close"
-             data-dismiss="modal" aria-label="Close">
-          <span aria-hidden="true">&times;</span>
-        </button>
-      </div>
-      <div class="modal-body">
-        <div class="img-wrapper img-scroller">
-          <img class="fullsize img-fluid">
-        </div>
-      </div>
-      <div class="modal-footer">
-        <div class="footer-caption">
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-<script>
-$('img:not([data-nothumb])[src]').wrap(function() {
-  var result = $('<a data-toggle="lightbox">')
-  result.attr('href', $(this).attr('src'));
-  var caption = $(this).closest('figure').find('figcaption').text();
-  if (!caption && $(this).closest('.citation').length) {
-    caption = $(this).closest('.citation').text();
-  }
-  if (caption) {
-    result.attr('data-footer', caption);
-  }
-  var title = $(this).attr('title');
-  if (!title) {
-    title = $(this).closest('td').find('.unit,.score').map(function() {
-      return $(this).text(); }).toArray().join('; ');
-  }
-  if (title) {
-    result.attr('data-title', title);
-  }
-  return result;
-});
-$(document).on('click', '[data-toggle=lightbox]', function(event) {
-    $('#lightbox img').attr('src', $(this).attr('href'));
-    $('#lightbox .modal-title').text($(this).data('title') ||
-       $(this).closest('.unit').find('.unitlabel').text());
-    $('#lightbox .footer-caption').text($(this).data('footer') ||
-       $(this).closest('.unit').find('.info').text());
-    event.preventDefault();
-    $('#lightbox').modal();
-    $('#lightbox img').closest('div').scrollLeft(0);
-});
-$(document).on('keydown', function(event) {
-    $('#lightbox').modal('hide');
-});
-$(document).on('click', '.sortby', function(event) {
-    var sortindex = +$(this).data('index');
-    sortBy(sortindex);
-    $('.sortby').removeClass('currentsort');
-    $(this).addClass('currentsort');
-});
-function sortBy(index) {
-  $('.unitgrid').find('.unit').sort(function (a, b) {
-     return +$(a).eq(0).data('order').split(' ')[index] -
-            +$(b).eq(0).data('order').split(' ')[index];
-  }).appendTo('.unitgrid');
-}
-</script>
-</body>
-</html>
-'''

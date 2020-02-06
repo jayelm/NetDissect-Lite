@@ -8,6 +8,7 @@ PROBE_DATASET = 'broden'                    # which dataset to probe with (brode
 QUANTILE = 0.005                            # the threshold used for activation
 SEG_THRESHOLD = 0.04                        # the threshold used for visualization
 SCORE_THRESHOLD = 0.04                      # the threshold used for IoU score (in HTML file)
+CONTRIBUTIONS = True   # If True, assume successive layers feed into each other; will use weights of layer i+1 to identify neurons contributing to layer i
 TOPN = 10                                   # to show top N image with highest activation for each unit
 PARALLEL = 32                                # how many process is used for tallying (Experiments show that 1 is the fastest)
 CATAGORIES = ["object", "part","scene","texture","color"] # concept categories that are chosen to detect: "object", "part", "scene", "material", "texture", "color"

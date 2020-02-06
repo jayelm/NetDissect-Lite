@@ -6,6 +6,7 @@ import settings
 import util.upsample as upsample
 import pandas as pd
 import util.vecquantile as vecquantile
+from util.misc import safe_layername
 import multiprocessing.pool as pool
 import multiprocessing as mp
 from loader.data_loader.broden import load_csv
@@ -67,16 +68,16 @@ class NeuronOperator:
 
         if memmap:
             skip = True
-            mmap_files =  [os.path.join(settings.OUTPUT_FOLDER, "%s.mmap" % feature_name)  for feature_name in  settings.FEATURE_NAMES]
-            mmap_max_files = [os.path.join(settings.OUTPUT_FOLDER, "%s_max.mmap" % feature_name) for feature_name in settings.FEATURE_NAMES]
-            mmap_pred_files = [os.path.join(settings.OUTPUT_FOLDER, "%s_pred.mmap" % feature_name) for feature_name in settings.FEATURE_NAMES]
+            mmap_files =  [os.path.join(settings.OUTPUT_FOLDER, "%s.mmap" % safe_layername(feature_name))  for feature_name in  settings.FEATURE_NAMES]
+            mmap_max_files = [os.path.join(settings.OUTPUT_FOLDER, "%s_max.mmap" % safe_layername(feature_name)) for feature_name in settings.FEATURE_NAMES]
+            mmap_pred_files = [os.path.join(settings.OUTPUT_FOLDER, "%s_pred.mmap" % safe_layername(feature_name)) for feature_name in settings.FEATURE_NAMES]
             if os.path.exists(features_size_file):
                 features_size = np.load(features_size_file)
             else:
                 skip = False
             for i, (mmap_file, mmap_max_file, mmap_pred_file) in enumerate(zip(mmap_files, mmap_max_files, mmap_pred_files)):
                 if os.path.exists(mmap_file) and os.path.exists(mmap_max_file) and os.path.exists(mmap_pred_file) and features_size[i] is not None:
-                    print('loading features %s' % settings.FEATURE_NAMES[i])
+                    print('loading features %s' % safe_layername(settings.FEATURE_NAMES[i]))
                     wholefeatures[i] = np.memmap(mmap_file, dtype=np.float32, mode='r', shape=tuple(features_size[i]))
                     maxfeatures[i] = np.memmap(mmap_max_file, dtype=np.float32, mode='r', shape=tuple(features_size[i][:2]))
                     all_preds[i] = np.memmap(mmap_pred_file, dtype=np.int64, mode='r', shape=(features_size[i][0], 2))
@@ -274,17 +275,13 @@ class NeuronOperator:
         del g['features']
 
         records = []
+
         if settings.UNIT_RANGE is None:
             mp_args = ((u, ) for u in range(units))
             nu = units
-            tally_dfname = 'tally.csv'
         else:
-            # Only use a subset of units
             mp_args = ((u, ) for u in settings.UNIT_RANGE)
             nu = len(settings.UNIT_RANGE)
-            tally_dfname = f"tally_{min(settings.UNIT_RANGE)}_{max(settings.UNIT_RANGE)}.csv"
-        tally_dfname = os.path.join(settings.OUTPUT_FOLDER, tally_dfname)
-
         with mp.Pool(settings.PARALLEL) as p, tqdm(total=nu, desc='IoU - primitives') as pbar:
             for (u, best, best_noncomp) in p.imap_unordered(NeuronOperator.compute_best_iou, mp_args):
                 best_lab, best_iou = best
@@ -309,10 +306,10 @@ class NeuronOperator:
 
                 if len(records) % 16 == 0:
                     tally_df = pd.DataFrame(records)
-                    tally_df.to_csv(tally_dfname, index=False)
+                    tally_df.to_csv(csvpath, index=False)
 
         tally_df = pd.DataFrame(records)
-        tally_df.to_csv(tally_dfname, index=False)
+        tally_df.to_csv(csvpath, index=False)
         return records, mc
 
     @staticmethod
