@@ -63,7 +63,7 @@ def fix(s):
 
 def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, thresholds=None,
         imsize=None, imscale=72, tally_result=None,
-        contributors=None, prev_layername=None,
+        contributors=None, prev_layername=None, prev_tally=None,
         gridwidth=None, gap=3, limit=None, force=False, verbose=False):
     ed = expdir.ExperimentDirectory(settings.OUTPUT_FOLDER)
     print('Generating html summary %s' % ed.filename('html/%s.html' % expdir.fn_safe(layer)))
@@ -259,10 +259,12 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
         # Get neighbors
         if contributors[0] is not None:
             contr = np.where(contributors[0][unit])[0]
+            contr_label_str = ', '.join(f'{u} ({prev_tally.get(u, "<unk>")})' for u in contr)
             contr_url_str = ','.join(map(str, contr))
             inhib = np.where(contributors[1][unit])[0]
             inhib_url_str = ','.join(map(str, inhib))
-            contr_str = f'<p class="contributors"><a href="{prev_layername}.html?u={contr_url_str}">{contr_url_str}</a></p><p class="inhibitors"><a href="{prev_layername}.html?u={inhib_url_str}">{inhib_url_str}</a></p>'
+            inhib_label_str = ', '.join(f'{u} ({prev_tally.get(u, "<unk>")})' for u in inhib)
+            contr_str = f'<p class="contributors"><a href="{prev_layername}.html?u={contr_url_str}">{contr_label_str}</a></p><p class="inhibitors"><a href="{prev_layername}.html?u={inhib_url_str}">{inhib_label_str}</a></p>'
         else:
             contr_str = ''
 

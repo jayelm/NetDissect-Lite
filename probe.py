@@ -43,6 +43,7 @@ ranger = tqdm(zip(settings.FEATURE_NAMES, features, maxfeature, preds, [None, *s
                   ),
               total=len(settings.FEATURE_NAMES))
 
+prev_tally = None
 for layer, layer_features, layer_maxfeature, pred, prev_layer, ctr, inb in ranger:
     layername = safe_layername(layer)
     prev_layername = safe_layername(prev_layer)
@@ -60,6 +61,9 @@ for layer, layer_features, layer_maxfeature, pred, prev_layer, ctr, inb in range
             nu = len(settings.UNIT_RANGE)
             tally_dfname = f"tally_{layername}_{min(settings.UNIT_RANGE)}_{max(settings.UNIT_RANGE)}.csv"
         tally_result, mc = fo.tally(layer_features, thresholds, savepath=tally_dfname)
+        prev_tally = {
+            record['unit']: record['label'] for record in tally_result
+        }
 
         # ==== STEP 4: generating results ====
         vneuron.generate_html_summary(fo.data, layername, pred, mc,
@@ -68,6 +72,7 @@ for layer, layer_features, layer_maxfeature, pred, prev_layer, ctr, inb in range
                                       maxfeature=layer_maxfeature,
                                       features=layer_features,
                                       prev_layername=prev_layername,
+                                      prev_tally=prev_tally,
                                       thresholds=thresholds,
                                       force=True)
     else:

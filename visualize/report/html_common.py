@@ -60,6 +60,12 @@ HTML_PREFIX = '''
   width: 288px;
   height: 72px;
 }
+.contributors {
+    color: green;
+}
+.inhibitosr {
+    color: red;
+}
 .midrule {
     margin-top: 1em;
     margin-bottom: 0.25em;
