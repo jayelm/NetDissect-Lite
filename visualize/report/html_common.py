@@ -23,7 +23,7 @@ def get_sortheader(names):
     )
 
 HTML_PREFIX = '''
-<!doctype html>
+<!DOCTYPE html>
 <html>
 <head>
 <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/css/bootstrap.min.css">
@@ -34,6 +34,9 @@ HTML_PREFIX = '''
 .unitviz, .unitviz .modal-header, .unitviz .modal-body, .unitviz .modal-footer {
   font-family: Arial;
   font-size: 15px;
+}
+button {
+    cursor: pointer;
 }
 .bluespan {
     color: blue;
@@ -66,11 +69,13 @@ HTML_PREFIX = '''
   width: 288px;
   height: 72px;
 }
-.contributors {
-    color: green !importantt;
+.contr {
 }
-.inhibitors {
-    color: red !important;
+.contributors a {
+    color: green;
+}
+.inhibitors a {
+    color: red;
 }
 .midrule {
     margin-top: 1em;
@@ -168,7 +173,7 @@ HTML_SUFFIX = '''
       </div>
       <div class="modal-body">
         <div class="img-wrapper img-scroller">
-          <img class="fullsize img-fluid">
+          <img class="fullsize img-fluid" src="//:0">
         </div>
       </div>
       <div class="modal-footer">

@@ -142,6 +142,24 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
         unit = int(record['unit']) - 1 # zero-based unit indexing
         imfn = 'image/%s%s-%04d.jpg' % (
                 expdir.fn_safe(layer), gridname, unit)
+
+        # Compute 2nd and 3rd image metadata
+        lab_f = F.parse(record['label'], reverse_namer=ds.rev_name)
+        if settings.EMBEDDING_SUMMARY and len(lab_f) > 1:
+            # Add a summary; load spacy only if needed
+            from visualize.report import summary
+            summ, sim = summary.summarize(lab_f, lambda j: ds.name(None, j))
+            summ = f" ({summ} {sim:.3f})"
+        else:
+            summ = ''
+
+        # Minor negation of label
+        neglab_f = F.minor_negate(lab_f, hard=True)
+        neglab = neglab_f.to_str(lambda name: ds.name(None, name))
+
+        row2fn = 'image/%s%s-%04d-maskimg.jpg' % (expdir.fn_safe(layer), gridname, unit)
+        row3fn = 'image/%s%s-%04d-maskimg-neg1.jpg' % (expdir.fn_safe(layer), gridname, unit)
+
         if force or not ed.has('html/%s' % imfn):
             if verbose:
                 print('Visualizing %s unit %d' % (layer, unit))
@@ -173,15 +191,7 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
             imwrite(ed.filename('html/' + imfn), tiled)
 
             # ==== ROW 2 - other images that match the mask ====
-            lab_f = F.parse(record['label'], reverse_namer=ds.rev_name)
             labs_enc = mc.get_mask(lab_f)
-            if settings.EMBEDDING_SUMMARY and len(lab_f) > 1:
-                # Add a summary; load spacy only if needed
-                from visualize.report import summary
-                summ, sim = summary.summarize(lab_f, lambda j: ds.name(None, j))
-                summ = f" ({summ} {sim:.3f})"
-            else:
-                summ = ''
             labs = cmask.decode(labs_enc)
             # Unflatten
             labs = labs.reshape((features.shape[0], *mc.mask_shape))
@@ -212,13 +222,10 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
                     'labels': [lbl],
                     'mark': None
                 })
-            row2fn = 'image/%s%s-%04d-maskimg.jpg' % (expdir.fn_safe(layer), gridname, unit)
             tiled = create_tiled_image(mask_imgs_ann, gridheight, gridwidth, ds, imsize=imsize, gap=gap)
             imwrite(ed.filename('html/' + row2fn), tiled)
 
             # ==== ROW 3 - images thatt match slightly neegative masks ====
-            neglab_f = F.minor_negate(lab_f, hard=True)
-            neglab = neglab_f.to_str(lambda name: ds.name(None, name))
             labs_enc = mc.get_mask(neglab_f)
             labs = cmask.decode(labs_enc)
             # Unflatten
@@ -228,7 +235,6 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
             # Get biggest tallies
             idx = np.argsort(lab_tallies)[::-1][:settings.TOPN]
 
-            row3fn = 'image/%s%s-%04d-maskimg-neg1.jpg' % (expdir.fn_safe(layer), gridname, unit)
             mask_imgs_ann = []
             for i in idx:
                 fname = ds.filename(i)
@@ -257,16 +263,37 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
             imwrite(ed.filename('html/' + row3fn), tiled)
 
         # Get neighbors
-        if contributors[0] is not None:
-            contr = np.where(contributors[0][unit])[0]
-            contr_label_str = ', '.join(f'{u} ({prev_tally.get(u, "<unk>")})' for u in contr)
+        contrs = []
+        for contr_i, contr_name in enumerate(sorted(list(contributors.keys()))):
+            contr_dict = contributors[contr_name]
+            if contr_dict['contr'][0] is None:
+                continue
+            contr, inhib = contr_dict['contr']
+
+            contr = np.where(contr[unit])[0]
+            contr_label_str = ', '.join(f'{u} ({prev_tally.get(u, "unk")})' for u in contr)
             contr_url_str = ','.join(map(str, contr))
-            inhib = np.where(contributors[1][unit])[0]
+
+            inhib = np.where(inhib[unit])[0]
             inhib_url_str = ','.join(map(str, inhib))
-            inhib_label_str = ', '.join(f'{u} ({prev_tally.get(u, "<unk>")})' for u in inhib)
-            contr_str = f'<p class="contributors"><a href="{prev_layername}.html?u={contr_url_str}">Contributors: {contr_label_str}</a></p><p class="inhibitors"><a href="{prev_layername}.html?u={inhib_url_str}">Inhibitors: {inhib_label_str}</a></p>'
-        else:
-            contr_str = ''
+            inhib_label_str = ', '.join(f'{u} ({prev_tally.get(u, "unk")})' for u in inhib)
+
+            show = 'show' if contr_i == 0 else ''
+
+            cname = f"{contr_name}-{unit}"
+            cstr = (
+                f'<div class="contr-head card-header" id="heading-{cname}"><h5 class="mb-0"><button class="btn btn-link" data-toggle="collapse" data-target="#collapse-{cname}" aria-expanded="true" aria-controls="collapse-{cname}">{contr_name}</button></h5></div>'
+                f'<div id="collapse-{cname}" class="collapse {show}" aria-labelledby="heading-{cname}" data-parent="#contr-{unit}"><div class="card-body">'
+                    f'<div class="card-body">'
+                    f'<p class="contributors"><a href="{prev_layername}.html?u={contr_url_str}">Contributors: {contr_label_str}</a></p>'
+                    f'<p class="inhibitors"><a href="{prev_layername}.html?u={inhib_url_str}">Inhibitors: {inhib_label_str}</a></p>'
+                    f'</div>'
+                f'</div></div>'
+            )
+            cstr = f'<div class="card contr">{cstr}</div>'
+            contrs.append(cstr)
+        contr_str = '\n'.join(contrs)
+        contr_str = f'<div id="contr-{unit}">{contr_str}</div>'
 
         # Generate the wrapper HTML
         graytext = ' lowscore' if float(record['score']) < settings.SCORE_THRESHOLD else ''
