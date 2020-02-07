@@ -10,6 +10,8 @@ from tqdm import tqdm
 from scipy.spatial import distance
 import torch
 import torch.nn.functional as F
+import pickle
+import os
 
 
 def noop(*args, **kwargs):
@@ -68,6 +70,8 @@ if settings.CONTRIBUTIONS:
         } for name in weights.keys()}
         for i in range(len(layernames))
     ]
+    with open(os.path.join(settings.OUTPUT_FOLDER, 'contrib.pkl'), 'w') as f:
+        pickle.dump(contrs_spread, f)
 else:
     contrs_spread = [
         {} for _ in settings.FEATURE_NAMES
