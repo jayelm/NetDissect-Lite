@@ -83,6 +83,7 @@ class ConvBlock(nn.Module):
 
 
 def loadmodel(hook_fn, hook_modules=None):
+    device = torch.device('cuda' if settings.GPU else 'cpu')
     if settings.MODEL == 'conv4':
         model_fn = Conv4
     else:
@@ -95,7 +96,7 @@ def loadmodel(hook_fn, hook_modules=None):
     elif settings.MODEL_FILE == '<UNTRAINED>':
         model = model_fn(pretrained=False)
     else:
-        checkpoint = torch.load(settings.MODEL_FILE)
+        checkpoint = torch.load(settings.MODEL_FILE, map_location=device)
         if type(checkpoint).__name__ == 'OrderedDict' or type(checkpoint).__name__ == 'dict':
             model = model_fn(num_classes=settings.NUM_CLASSES)
             if settings.MODEL_PARALLEL:
