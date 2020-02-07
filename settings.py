@@ -85,7 +85,7 @@ elif MODEL == 'resnet101':
     FEATURE_NAMES = ['layer4']
 elif MODEL == 'conv4':
     # Not sure...
-    FEATURE_NAMES = ['layer4']
+    FEATURE_NAMES = [['trunk', '3']]
 
 if DATASET == 'places365':
     MODEL_FILE = f'zoo/{MODEL}_places365.pth.tar'
