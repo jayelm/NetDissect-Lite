@@ -35,6 +35,12 @@ HTML_PREFIX = '''
   font-family: Arial;
   font-size: 15px;
 }
+.bluespan {
+    color: blue;
+}
+.redspan {
+    color: red;
+}
 .unitgrid {
   text-align: center;
   border-spacing: 5px;
