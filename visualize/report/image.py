@@ -55,7 +55,7 @@ def create_tiled_image(imgs, gridheight, gridwidth, ds, imsize=112, gap=3):
         label = '\n'.join('' if l is None else l for l in labels)
         if label:
             draw = ImageDraw.Draw(vis)
-            draw.text((0, 0), label, font=ARIAL, fill=(0, 0, 0, 255))
+            draw.text((0, 0), label, font=ARIAL, fill=(0, 128, 0, 255))
         vis = np.array(vis)
         tiled[row*(imsize+gap):row*(imsize+gap)+imsize,
               col*(imsize+gap):col*(imsize+gap)+imsize,:] = vis
