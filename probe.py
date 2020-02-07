@@ -44,6 +44,7 @@ thresholds = [fo.quantile_threshold(lf, savepath=f'quantile_{ln}')
 
 # ==== New: multilayer case - neuron contributions ====
 if settings.CONTRIBUTIONS:
+    print("Computing contributions")
     weights = {
         'weight': contrib.get_weights(hook_modules),
         'feat_corr': contrib.get_feat_corr(features),
@@ -70,7 +71,7 @@ if settings.CONTRIBUTIONS:
         } for name in weights.keys()}
         for i in range(len(layernames))
     ]
-    with open(os.path.join(settings.OUTPUT_FOLDER, 'contrib.pkl'), 'w') as f:
+    with open(os.path.join(settings.OUTPUT_FOLDER, 'contrib.pkl'), 'wb') as f:
         pickle.dump(contrs_spread, f)
 else:
     contrs_spread = [
