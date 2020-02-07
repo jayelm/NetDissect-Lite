@@ -6,7 +6,7 @@ HTML_SORTHEADER = '''
 <div class="sortheader">
 sort by
 <span class="sortby currentsort" data-index="0">label</span>
-{{}}
+{}
 <span class="sortby" data-index="1">score</span>
 <span class="sortby" data-index="2">unit</span>
 <span class="sortby" data-index="3">correct</span>
@@ -61,10 +61,10 @@ HTML_PREFIX = '''
   height: 72px;
 }
 .contributors {
-    color: green;
+    color: green !importantt;
 }
-.inhibitosr {
-    color: red;
+.inhibitors {
+    color: red !important;
 }
 .midrule {
     margin-top: 1em;
