@@ -264,7 +264,7 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
             inhib = np.where(contributors[1][unit])[0]
             inhib_url_str = ','.join(map(str, inhib))
             inhib_label_str = ', '.join(f'{u} ({prev_tally.get(u, "<unk>")})' for u in inhib)
-            contr_str = f'<p class="contributors"><a href="{prev_layername}.html?u={contr_url_str}">{contr_label_str}</a></p><p class="inhibitors"><a href="{prev_layername}.html?u={inhib_url_str}">{inhib_label_str}</a></p>'
+            contr_str = f'<p class="contributors"><a href="{prev_layername}.html?u={contr_url_str}">Contributors: {contr_label_str}</a></p><p class="inhibitors"><a href="{prev_layername}.html?u={inhib_url_str}">Inhibitors: {inhib_label_str}</a></p>'
         else:
             contr_str = ''
 
