@@ -92,7 +92,7 @@ for layer, layer_features, layer_maxfeature, pred, prev_layer, ctr, inb in range
         if settings.IMAGES is None:
             input_fname = f'input_{layername}.csv'
         else:
-            input_fname = f'input_{layername}_{settings.IMAGES}'
+            input_fname = f'input_{layername}_{settings.IMAGES}.csv'
         records, mc = fo.search_concepts(graph, pred, fname=input_fname)
         vrepr.generate_html_summary(fo.data, layername, records,
                                     pdists_condensed, pred, mc, thresh, force=True)
