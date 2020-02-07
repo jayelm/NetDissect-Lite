@@ -9,7 +9,7 @@ if __name__ == '__main__':
         description='Clean experiment file',
         formatter_class=ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument('extensions', nargs='*', default=['csv', 'npy', 'mmap'],
+    parser.add_argument('extensions', nargs='*', default=['csv', 'npy', 'npz', 'mmap'],
                         help='Which extensions to remove')
 
     args = parser.parse_args()

@@ -82,14 +82,18 @@ for layer, layer_features, layer_maxfeature, pred, prev_layer, ctr, inb in range
         layer_features = layer_features.mean((2, 3))
 
         # ==== STEP 2: Calculate distances and threshold ====
-        pdists_condensed = fo.compute_pdists(layer_features)
+        pdists_condensed = fo.compute_pdists(layer_features, fname=f'pdists_{layername}.npz')
         thresh = fo.quantile_threshold(pdists_condensed, settings.REPR_ALPHA)
         print(f"Using cutoff threshold of {thresh}")
         sim = pdists_condensed < thresh
         graph = distance.squareform(sim)
 
         # ==== STEP 3: Search for concepts ====
-        records, mc = fo.search_concepts(graph, pred)
+        if settings.IMAGES is None:
+            input_fname = f'input_{layername}.csv'
+        else:
+            input_fname = f'input_{layername}_{settings.IMAGES}'
+        records, mc = fo.search_concepts(graph, pred, fname=input_fname)
         vrepr.generate_html_summary(fo.data, layername, records,
                                     pdists_condensed, pred, mc, thresh, force=True)
 

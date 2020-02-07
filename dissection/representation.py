@@ -41,8 +41,8 @@ def square_to_condensed(i, j, n):
 
 
 class ReprOperator(NeuronOperator):
-    def compute_pdists(self, features):
-        pdists_fname = os.path.join(settings.OUTPUT_FOLDER, 'pdists.npz')
+    def compute_pdists(self, features, fname='pdists.npz'):
+        pdists_fname = os.path.join(settings.OUTPUT_FOLDER, fname)
         if os.path.exists(pdists_fname):
             print(f"Loading cached {pdists_fname}")
             return np.load(pdists_fname)['arr_0']
@@ -70,14 +70,12 @@ class ReprOperator(NeuronOperator):
             adj[i] = np.argwhere(graph[i]).squeeze(1)
         return adj
 
-    def search_concepts(self, graph, preds):
+    def search_concepts(self, graph, preds, fname='input.csv'):
         if settings.IMAGES is None:
             max_i = graph.shape[0]
-            sfx = ''
         else:
             max_i = settings.IMAGES
-            sfx = f'_{max_i}'
-        input_fname = os.path.join(settings.OUTPUT_FOLDER, f'input{sfx}.csv')
+        input_fname = os.path.join(settings.OUTPUT_FOLDER, fname)
 
         categories = self.data.category_names()
         pcats = self.data.primary_categories_per_index()
