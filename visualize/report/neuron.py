@@ -63,7 +63,7 @@ def fix(s):
 
 def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, thresholds=None,
         imsize=None, imscale=72, tally_result=None,
-        contributors=None,
+        contributors=None, prev_layername=None,
         gridwidth=None, gap=3, limit=None, force=False, verbose=False):
     ed = expdir.ExperimentDirectory(settings.OUTPUT_FOLDER)
     print('Generating html summary %s' % ed.filename('html/%s.html' % expdir.fn_safe(layer)))
@@ -256,6 +256,15 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
             tiled = create_tiled_image(mask_imgs_ann, gridheight, gridwidth, ds, imsize=imsize, gap=gap)
             imwrite(ed.filename('html/' + row3fn), tiled)
 
+        # Get neighbors
+        if contributors[0] is not None:
+            contr = np.where(contributors[0][unit])[0]
+            contr_url_str = ','.join(map(str, contr))
+            inhib = np.where(contributors[1][unit])[0]
+            inhib_url_str = ','.join(map(str, inhib))
+            contr_str = f'<p class="contributors"><a href="{prev_layername}.html?u={contr_url_str}">{contr_url_str}</a></p><p class="inhibitors"><a href="{prev_layername}.html?u={inhib_url_str}">{inhib_url_str}</a></p>'
+        else:
+            contr_str = ''
 
         # Generate the wrapper HTML
         graytext = ' lowscore' if float(record['score']) < settings.SCORE_THRESHOLD else ''
@@ -267,6 +276,7 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
             '<span class="unitnum">unit %d</span> ' % (unit + 1) +
             '<span class="category">(%s)</span> ' % record['category'] +
             '<span class="iou">IoU %.2f</span>' % float(record['score']) +
+            contr_str +
             '</div>')
         html.append(
             '<div class="thumbcrop"><img src="%s" height="%d"></div>' %

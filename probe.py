@@ -33,18 +33,19 @@ else:
 # maxfeature: the maximum activation across the input map for each channel (e.g. for layer 4, there is a 7x7 input map; what's the max value). one 63305 x c tensor for each feature
 features, maxfeature, preds = fo.feature_extraction(model=model)
 
-ranger = tqdm(zip(settings.FEATURE_NAMES, features, maxfeature, preds, [None, *settings.FEATURE_NAMES]),
-              total=len(settings.FEATURE_NAMES))
-
 if settings.CONTRIBUTIONS:
     contr, inhib = contrib.get_contributors(hook_modules, alpha_global=0.01)
 else:
-    contr, inhib = (None, None)
+    contr, inhib = ([None for _ in settings.FEATURE_NAMES], [None for _ in settings.FEATURE_NAMES])
 
-for layer, layer_features, layer_maxfeature, pred, prev_layer in ranger:
+ranger = tqdm(zip(settings.FEATURE_NAMES, features, maxfeature, preds, [None, *settings.FEATURE_NAMES],
+                  contr, inhib
+                  ),
+              total=len(settings.FEATURE_NAMES))
+
+for layer, layer_features, layer_maxfeature, pred, prev_layer, ctr, inb in ranger:
     layername = safe_layername(layer)
     prev_layername = safe_layername(prev_layer)
-    print(layername, prev_layername)
     ranger.set_description(f'Layer {layername}')
     if settings.LEVEL == 'neuron':
         # ==== STEP 2: Calculate threshold ====
@@ -63,9 +64,10 @@ for layer, layer_features, layer_maxfeature, pred, prev_layer in ranger:
         # ==== STEP 4: generating results ====
         vneuron.generate_html_summary(fo.data, layername, pred, mc,
                                       tally_result=tally_result,
-                                      contributors=(contr, inhib),
+                                      contributors=(ctr, inb),
                                       maxfeature=layer_maxfeature,
                                       features=layer_features,
+                                      prev_layername=prev_layername,
                                       thresholds=thresholds,
                                       force=True)
     else:
