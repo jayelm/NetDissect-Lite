@@ -1,5 +1,6 @@
 ######### global settings  #########
 GPU = True                                  # running on GPU is highly suggested
+SEED = 42  # Used mainly to seed random images for now.
 INDEX_FILE = 'index_ade20k.csv'                # Which index file to use? If _sm, use test mode
 CLEAN = False                               # set to "True" if you want to clean the temporary large files after generating result
 MODEL = 'resnet18'                          # model arch: resnet18, alexnet, resnet50, densenet161
@@ -80,6 +81,8 @@ if MODEL not in {'resnet18', 'renset101', 'conv4'}:
     raise NotImplementedError(f"model = {MODEL}")
 
 if MODEL == 'resnet18':
+    # For contributions
+    #  FEATURE_NAMES = [['layer4', '1', 'conv1'], ['layer4', '1', 'conv2']]
     FEATURE_NAMES = ['layer4']
 elif MODEL == 'resnet101':
     FEATURE_NAMES = ['layer4']

@@ -107,7 +107,9 @@ class ReprOperator(NeuronOperator):
 
         records = []
 
-        mp_args = [(i, ) for i in range(max_i)]
+        random = np.random.RandomState(seed=settings.SEED)
+        i_rand = random.permutation(graph.shape[0])
+        mp_args = [(i_rand[i], ) for i in range(max_i)]
         with mp.Pool(settings.PARALLEL) as p, tqdm(total=max_i, desc='Images') as pbar:
             for i, best, best_noncomp in p.imap_unordered(ReprOperator.compute_best_label, mp_args):
                 # Name the label
