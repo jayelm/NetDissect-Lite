@@ -48,7 +48,7 @@ if settings.CONTRIBUTIONS:
     if os.path.exists(contr_fname):
         print(f"Loading cached contributions {contr_fname}")
         with open(contr_fname, 'rb') as f:
-            contrs_spreaed = pickle.load(f)
+            contrs_spread = pickle.load(f)
     else:
         print("Computing contributions")
         # TODO: Maybe multiprocess this if it ends up being really slow?

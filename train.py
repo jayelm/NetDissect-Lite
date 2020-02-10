@@ -40,9 +40,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if settings.DATASET != 'imagenet':
-        warnings.warn('Recommend imagenet-pretained model')
-
     torch.manual_seed(args.seed)
     random = np.random.seed(args.seed)
 
@@ -56,7 +53,8 @@ if __name__ == '__main__':
     dataloaders = {s: to_dataloader(d, batch_size=args.batch_size)
                    for s, d in datasets.items()}
 
-    model = loadmodel(None)
+    # Always load pretrained
+    model = loadmodel(None, pretrained_override=True)
     # Replace the last layer
     if settings.MODEL == 'resnet18':
         inf = 512

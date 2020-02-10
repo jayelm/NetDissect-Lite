@@ -82,7 +82,7 @@ class ConvBlock(nn.Module):
         # self.BN.reset_parameters()
 
 
-def loadmodel(hook_fn, hook_modules=None):
+def loadmodel(hook_fn, hook_modules=None, pretrained_override=None):
     device = torch.device('cuda' if settings.GPU else 'cpu')
     if settings.MODEL == 'conv4':
         model_fn = Conv4
@@ -92,9 +92,9 @@ def loadmodel(hook_fn, hook_modules=None):
     if settings.MODEL_FILE is None:
         if settings.MODEL == 'conv4':
             raise NotImplementedError("No pretrained conv4")
-        model = model_fn(pretrained=True)
+        model = model_fn(pretrained=pretrained_override if pretrained_override is not None else True)
     elif settings.MODEL_FILE == '<UNTRAINED>':
-        model = model_fn(pretrained=False)
+        model = model_fn(pretrained=pretrained_override if pretrained_override is not None else False)
     else:
         checkpoint = torch.load(settings.MODEL_FILE, map_location=device)
         if type(checkpoint).__name__ == 'OrderedDict' or type(checkpoint).__name__ == 'dict':
