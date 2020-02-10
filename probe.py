@@ -44,11 +44,11 @@ thresholds = [fo.quantile_threshold(lf, savepath=f'quantile_{ln}')
 
 # ==== New: multilayer case - neuron contributions ====
 if settings.CONTRIBUTIONS:
-    contr_f = os.path.join(settings.OUTPUT_FOLDER, 'contrib.pkl')
-    if os.path.exists(contr_f):
-        print(f"Loading cached contributions {contr_f}")
-        with open(contr_f, 'rb') as f:
-            contrs_spreaed = pickle.load(contr_f)
+    contr_fname = os.path.join(settings.OUTPUT_FOLDER, 'contrib.pkl')
+    if os.path.exists(contr_fname):
+        print(f"Loading cached contributions {contr_fname}")
+        with open(contr_fname, 'rb') as f:
+            contrs_spreaed = pickle.load(f)
     else:
         print("Computing contributions")
         # TODO: Maybe multiprocess this if it ends up being really slow?
@@ -78,7 +78,7 @@ if settings.CONTRIBUTIONS:
             } for name in weights.keys()}
             for i in range(len(layernames))
         ]
-        with open(contr_f, 'wb') as f:
+        with open(contr_fname, 'wb') as f:
             pickle.dump(contrs_spread, f)
 else:
     contrs_spread = [
