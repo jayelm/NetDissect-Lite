@@ -44,35 +44,42 @@ thresholds = [fo.quantile_threshold(lf, savepath=f'quantile_{ln}')
 
 # ==== New: multilayer case - neuron contributions ====
 if settings.CONTRIBUTIONS:
-    print("Computing contributions")
-    weights = {
-        'weight': contrib.get_weights(hook_modules),
-        'feat_corr': contrib.get_feat_corr(features),
-        'act_iou': contrib.get_act_iou(features, thresholds),
-        'act_iou_inhib': contrib.get_act_iou_inhib(features, thresholds)
-    }
-    contrs = {
-        name: contrib.threshold_contributors(weight, alpha_global=0.01)
-        for name, weight in weights.items()
-    }
-    # [
-    # (layer1)
-    # {
-    #     'feat_corr': {
-    #         'weight': ...,
-    #         'contr': ...
-    #     }
-    # }
-    # ]
-    contrs_spread = [
-        {name: {
-            'weight': weights[name][i],
-            'contr': contrs[name][i]
-        } for name in weights.keys()}
-        for i in range(len(layernames))
-    ]
-    with open(os.path.join(settings.OUTPUT_FOLDER, 'contrib.pkl'), 'wb') as f:
-        pickle.dump(contrs_spread, f)
+    contr_f = os.path.join(settings.OUTPUT_FOLDER, 'contrib.pkl')
+    if os.path.exists(contr_f):
+        print(f"Loading cached contributions {contr_f}")
+        with open(contr_f, 'rb') as f:
+            contrs_spreaed = pickle.load(contr_f)
+    else:
+        print("Computing contributions")
+        # TODO: Maybe multiprocess this if it ends up being really slow?
+        weights = {
+            'weight': contrib.get_weights(hook_modules),
+            'feat_corr': contrib.get_feat_corr(features),
+            'act_iou': contrib.get_act_iou(features, thresholds),
+            'act_iou_inhib': contrib.get_act_iou_inhib(features, thresholds)
+        }
+        contrs = {
+            name: contrib.threshold_contributors(weight, alpha_global=0.01)
+            for name, weight in weights.items()
+        }
+        # [
+        # (layer1)
+        # {
+        #     'feat_corr': {
+        #         'weight': ...,
+        #         'contr': ...
+        #     }
+        # }
+        # ]
+        contrs_spread = [
+            {name: {
+                'weight': weights[name][i],
+                'contr': contrs[name][i]
+            } for name in weights.keys()}
+            for i in range(len(layernames))
+        ]
+        with open(contr_f, 'wb') as f:
+            pickle.dump(contrs_spread, f)
 else:
     contrs_spread = [
         {} for _ in settings.FEATURE_NAMES
@@ -96,9 +103,6 @@ for layername, layer_features, layer_maxfeature, layer_thresholds, layer_preds, 
             # Only use a subset of units
             tally_dfname = f"tally_{layername}_{min(settings.UNIT_RANGE)}_{max(settings.UNIT_RANGE)}.csv"
         tally_result, mc = fo.tally(layer_features, layer_thresholds, savepath=tally_dfname)
-        prev_tally = {
-            record['unit']: record['label'] for record in tally_result
-        }
 
         # ==== STEP 4: generating results ====
         vneuron.generate_html_summary(fo.data, layername, layer_preds, mc,
@@ -110,6 +114,10 @@ for layername, layer_features, layer_maxfeature, layer_thresholds, layer_preds, 
                                       prev_tally=prev_tally,
                                       thresholds=layer_thresholds,
                                       force=False)
+
+        prev_tally = {
+            record['unit']: record['label'] for record in tally_result
+        }
     else:
         # Representation (neuralese) search
 
