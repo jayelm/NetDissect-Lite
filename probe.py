@@ -3,7 +3,7 @@ from loader.model_loader import loadmodel
 from dissection.neuron import hook_feature, NeuronOperator
 from dissection.representation import ReprOperator
 from dissection import contrib
-from visualize.report import neuron as vneuron, representation as vrepr
+from visualize.report import neuron as vneuron, representation as vrepr, final as vfinal
 from util.clean import clean
 from util.misc import safe_layername
 from tqdm import tqdm
@@ -23,6 +23,26 @@ layernames = list(map(safe_layername, settings.FEATURE_NAMES))
 
 hook_modules = []
 
+
+def spread_contrs(weights, contrs, layernames):
+    """
+    [
+    (layer1)
+    {
+        'feat_corr': {
+            'weight': ...,
+            'contr': ...
+        }
+    }
+    ]
+    """
+    return [
+        {name: {
+            'weight': weights[name][i],
+            'contr': contrs[name][i]
+        } for name in weights.keys()}
+        for i in range(len(layernames))
+    ]
 
 model = loadmodel(hook_feature, hook_modules=hook_modules)
 if settings.LEVEL == 'neuron':
@@ -62,22 +82,7 @@ if settings.CONTRIBUTIONS:
             name: contrib.threshold_contributors(weight, alpha_global=0.01)
             for name, weight in weights.items()
         }
-        # [
-        # (layer1)
-        # {
-        #     'feat_corr': {
-        #         'weight': ...,
-        #         'contr': ...
-        #     }
-        # }
-        # ]
-        contrs_spread = [
-            {name: {
-                'weight': weights[name][i],
-                'contr': contrs[name][i]
-            } for name in weights.keys()}
-            for i in range(len(layernames))
-        ]
+        contrs_spread = spread_contrs(weights, contrs, layernames)
         with open(contr_fname, 'wb') as f:
             pickle.dump(contrs_spread, f)
 else:
@@ -113,7 +118,7 @@ for layername, layer_features, layer_maxfeature, layer_thresholds, layer_preds, 
                                       prev_layername=prev_layername,
                                       prev_tally=prev_tally,
                                       thresholds=layer_thresholds,
-                                      force=True)
+                                      force=False)
 
         prev_tally = {
             record['unit']: record['label'] for record in tally_result
@@ -140,5 +145,12 @@ for layername, layer_features, layer_maxfeature, layer_thresholds, layer_preds, 
         vrepr.generate_html_summary(fo.data, layername, records,
                                     pdists_condensed, layer_preds, mc, thresh, force=True)
 
-    if settings.CLEAN:
-        clean()
+# ==== STEP 5: generate last layer ====
+if settings.LEVEL == 'neuron':
+    # Final layer - neurons that contribute to decisions
+    final_weight_np = model.fc.weight.detach().cpu().numpy()
+    final_contrs = contrib.threshold_contributors([None, final_weight_np], alpha_global=0.01)[1]
+    vfinal.generate_final_layer_summary(fo.data, final_weight_np, prev_layername=layernames[-1], prev_tally=prev_tally, contributors=final_contrs)
+
+if settings.CLEAN:
+    clean()
