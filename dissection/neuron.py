@@ -344,6 +344,14 @@ class NeuronOperator:
                 best_lab = lab_f
 
         nonzero_iou = Counter({lab: iou for lab, iou in ious.items() if iou > 0})
+
+        if settings.BEAM_SEARCH_LIMIT is not None:
+            # Restrict possible candidates
+            bs_labs = [t[0] for t in nonzero_iou.most_common(settings.BEAM_SEARCH_LIMIT)]
+        else:
+            # Search with all possible labels
+            bs_labs = g['labels']
+
         # Beam search
         formulas = {F.Leaf(lab): iou for lab, iou in nonzero_iou.most_common(settings.BEAM_SIZE)}
         best_noncomp = Counter(formulas).most_common(1)[0]
@@ -351,7 +359,7 @@ class NeuronOperator:
         for i in range(settings.MAX_FORMULA_LENGTH - 1):
             new_formulas = {}
             for formula in formulas:
-                for label in g['labels']:
+                for label in bs_labs:
                     for op, negate in [(F.Or, False), (F.And, False), (F.And, True)]:
                         new_term = F.Leaf(label)
                         if negate:

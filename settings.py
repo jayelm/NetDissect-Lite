@@ -21,6 +21,7 @@ EMBEDDING_SUMMARY = False    # Make an embedding-based summary of the formulas d
 SEMANTIC_CONSISTENCY = True    # Evaluate semantic consistency of formulas
 MASK_SEARCH = True
 FORMULA_COMPLEXITY_PENALTY = 0.99  # How much to downweight formulas by their length
+BEAM_SEARCH_LIMIT = 100  # (artificially) limit beam to this many candidates
 BEAM_SIZE = 5  # Size of the beam when doing formula search
 MAX_FORMULA_LENGTH = 3  # Maximum compositional formula length
 FORCE_DISJUNCTION = False   # Only output disjunctive concepts. (Otherwise, disjunctive concepts are only identified if they have the highest IoU relative to other categories)
@@ -83,8 +84,8 @@ if MODEL not in {'resnet18', 'renset101', 'conv4'}:
 
 if MODEL == 'resnet18':
     # For contributions
-    #  FEATURE_NAMES = [['layer4', '1', 'conv1'], ['layer4', '1', 'conv2']]
-    FEATURE_NAMES = ['layer4']
+    FEATURE_NAMES = [['layer4', '1', 'conv1'], ['layer4', '1', 'conv2']]
+    #  FEATURE_NAMES = ['layer4']
 elif MODEL == 'resnet101':
     FEATURE_NAMES = ['layer4']
 elif MODEL == 'conv4':
