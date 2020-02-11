@@ -15,6 +15,7 @@ from PIL import Image
 import warnings
 from tqdm import tqdm
 import loader.data_loader.formula as F
+from loader.data_loader import ade20k
 import os
 
 
@@ -166,6 +167,10 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
             # ==== ROW 1: TOP PATCH IMAGES ====
             img_ann = []
             for index in top[unit]:
+                # Breakpoint
+                pred, target = preds[index]
+                pred_name = ade20k.I2S[pred]
+                target_name = f'{ds.scene(index)}-s'
                 if settings.PROBE_DATASET == 'cub':
                     # Images can be different in CUB - stick with Image.open for more reliable
                     # operation
@@ -184,8 +189,8 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
                 vis = np.round(vis).astype(np.uint8)
                 img_ann.append({
                     'img': vis,
-                    'labels': [None],
-                    'mark': None
+                    'labels': [f"pred: {pred_name}", f"target: {target_name}"],
+                    'mark': (0, 255, 0) if pred_name == target_name else None
                 })
             tiled = create_tiled_image(img_ann, gridheight, gridwidth, ds, imsize=imsize, gap=gap)
             imwrite(ed.filename('html/' + imfn), tiled)

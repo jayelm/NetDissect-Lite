@@ -113,7 +113,7 @@ for layername, layer_features, layer_maxfeature, layer_thresholds, layer_preds, 
                                       prev_layername=prev_layername,
                                       prev_tally=prev_tally,
                                       thresholds=layer_thresholds,
-                                      force=False)
+                                      force=True)
 
         prev_tally = {
             record['unit']: record['label'] for record in tally_result

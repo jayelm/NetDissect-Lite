@@ -17,6 +17,7 @@ from torchvision import transforms
 import torch
 import pickle
 from tqdm import tqdm
+import json
 #  from scipy.sparse import coo_matrix
 
 from . import data_utils as du
@@ -126,6 +127,14 @@ class SegmentationData(AbstractSegmentation):
 
         self.labelcat = du.onehot(self.primary_categories_per_index())
 
+        # Maps from file basenames to places365 scenes
+        scenes_fname = os.path.join(directory, 'ade20k_scenes.json')
+        if os.path.exists(scenes_fname):
+            with open(scenes_fname, 'r') as f:
+                self.scenes = json.load(f)
+        else:
+            self.scenes = {}
+
     def primary_categories_per_index(ds):
         '''
         Returns an array of primary category numbers for each label, where the
@@ -162,6 +171,10 @@ class SegmentationData(AbstractSegmentation):
     def filename(self, i):
         '''The filename of the ith jpeg (original image).'''
         return os.path.join(self.directory, 'images', self.image[i]['image'])
+
+    def scene(self, i):
+        img_basename = os.path.basename(self.image[i]['image'])
+        return self.scenes.get(img_basename, 'unk')
 
     def split(self, i):
         '''Which split contains item i.'''
@@ -555,17 +568,27 @@ class SegmentationPrefetcher:
         # This also applies a random flip if needed
         if batch is None:
             return None
-        batches = [[] for c in self.categories]
+        cats = [*self.categories, 'scene']
+        batches = [[] for c in cats]
         for record in batch:
             default_shape = (1, record['sh'], record['sw'])
-            for c, cat in enumerate(self.categories):
+            for c, cat in enumerate(cats):
                 if cat == 'image':
                     # Normalize image with right RGB order and mean
                     batches[c].append(normalize_image(
                         record[cat], bgr_mean))
                 elif global_labels:
-                    batches[c].append(normalize_label(
-                        record[cat], default_shape, flatten=True))
+                    if cat == 'scene':
+                        if not record[cat]:
+                            batches[c].append(np.array([-1]))
+                        elif len(record[cat]) > 1:
+                            print(f"Multiple scenes: {record['fn']} {record[cat]}")
+                            batches[c].append(np.array(record[cat][0]))
+                        else:
+                            batches[c].append(np.array(record[cat]))
+                    else:
+                        batches[c].append(normalize_label(
+                            record[cat], default_shape, flatten=True))
                 else:
                     catmap = self.catmaps[c]
                     batches[c].append(catmap[normalize_label(
@@ -600,6 +623,7 @@ def prefetch_worker(d):
     if d is None:
         return None
     j, typ, m, fn, categories, segmentation_shape = d
+    categories = ['scene', *categories]
     segs, shape = typ.resolve_segmentation(m, categories=categories)
     if segmentation_shape is not None:
         for k, v in segs.items():

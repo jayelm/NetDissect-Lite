@@ -88,7 +88,7 @@ class NeuronOperator:
                 return wholefeatures, maxfeatures, all_preds
 
         num_batches = (len(loader.indexes) + loader.batch_size - 1) / loader.batch_size
-        for batch_idx, (inp, *rest) in tqdm(enumerate(loader.tensor_batches(bgr_mean=self.mean)), desc='Extracting features', total=int(np.ceil(num_batches))):
+        for batch_idx, (inp, *rest) in tqdm(enumerate(loader.tensor_batches(bgr_mean=self.mean, global_labels=True)), desc='Extracting features', total=int(np.ceil(num_batches))):
             del features_blobs[:]
             if settings.PROBE_DATASET == 'broden':
                 # Unused for CUB - tensors already
@@ -108,6 +108,8 @@ class NeuronOperator:
             if settings.PROBE_DATASET == 'cub':
                 # Targets are provided
                 targets = rest[0]
+            elif settings.PROBE_DATASET == 'broden':
+                targets = rest[0].squeeze(1)
             else:
                 # Model was not trained to predict
                 targets = preds
