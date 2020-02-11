@@ -122,7 +122,10 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
             if float(record['score']) >= settings.SCORE_THRESHOLD)),
         settings.SCORE_THRESHOLD))
     html.append('</div>')
-    html.append(html_common.get_sortheader(['score', 'unit']))
+    sort_by = ['score', 'unit']
+    if settings.SEMANTIC_CONSISTENCY:
+        sort_by.append('consistency')
+    html.append(html_common.get_sortheader(sort_by))
     html.append('</div>')
 
     if gridwidth is None:
@@ -136,9 +139,27 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
     html.append('<div class="unitgrid"') # Leave off > to eat spaces
     if limit is not None:
         rendered_order = rendered_order[:limit]
+
+    # Assign ordering based on score
     for i, record in enumerate(
             sorted(rendered_order, key=lambda record: -float(record['score']))):
         record['score-order'] = i
+
+    # Assign ordering based on consistency
+    for record in rendered_order:
+        lab_f = F.parse(record['label'], reverse_namer=ds.rev_name)
+        if settings.SEMANTIC_CONSISTENCY:
+            from visualize.report import summary
+            record['consistency'] = summary.pairwise_sim(lab_f, lambda j: ds.name(None, j))
+        else:
+            record['consistency'] = 0
+    for i, record in enumerate(
+            sorted(rendered_order, key=lambda record: -float(record['consistency']))):
+        record['consistency-order'] = i
+
+    # TODO: Make embedding summary searchable too.
+
+    # Visualize neurons
     for label_order, record in enumerate(tqdm(rendered_order, desc='Visualizing neurons')):
         unit = int(record['unit']) - 1 # zero-based unit indexing
         imfn = 'image/%s%s-%04d.jpg' % (
@@ -146,13 +167,15 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
 
         # Compute 2nd and 3rd image metadata
         lab_f = F.parse(record['label'], reverse_namer=ds.rev_name)
+        summ = ''
+        # Add summaries; load spacy only if needed
+        if settings.SEMANTIC_CONSISTENCY:
+            summ += f" (consistency: {record['consistency']:.3f})"
+
         if settings.EMBEDDING_SUMMARY and len(lab_f) > 1:
-            # Add a summary; load spacy only if needed
             from visualize.report import summary
-            summ, sim = summary.summarize(lab_f, lambda j: ds.name(None, j))
-            summ = f" ({summ} {sim:.3f})"
-        else:
-            summ = ''
+            emb_summ, sim = summary.summarize(lab_f, lambda j: ds.name(None, j))
+            summ += f" ({emb_summ} {sim:.3f})"
 
         # Minor negation of label
         neglab_f = F.minor_negate(lab_f, hard=True)
@@ -302,8 +325,8 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
 
         # Generate the wrapper HTML
         graytext = ' lowscore' if float(record['score']) < settings.SCORE_THRESHOLD else ''
-        html.append('><div class="unit%s" data-order="%d %d %d">' %
-                (graytext, label_order, record['score-order'], unit + 1))
+        html.append('><div class="unit%s" data-order="%d %d %d %d">' %
+                (graytext, label_order, record['score-order'], unit + 1, record['consistency-order']))
         html.append(f"<div class='unitlabel'>{fix(record['label'])}{summ}</div>")
         html.append('<div class="info">' +
             '<span class="layername">%s</span> ' % layer +

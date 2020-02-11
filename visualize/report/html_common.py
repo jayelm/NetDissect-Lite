@@ -7,10 +7,6 @@ HTML_SORTHEADER = '''
 sort by
 <span class="sortby currentsort" data-index="0">label</span>
 {}
-<span class="sortby" data-index="1">score</span>
-<span class="sortby" data-index="2">unit</span>
-<span class="sortby" data-index="3">correct</span>
-<span class="sortby" data-index="4">incorrect</span>
 </div>
 '''
 
@@ -149,9 +145,15 @@ button {
   cursor: pointer;
 }
 .sortby.currentsort {
-  text-decoration: none;
+  // text-decoration: none;
   font-weight: bold;
-  cursor: default;
+  // cursor: default;
+}
+.sort-up::after {
+  content: " - (up)";
+}
+.sort-down::after {
+  content: " - (down)";
 }
 </style>
 </head>
@@ -218,20 +220,39 @@ $(document).on('keydown', function(event) {
     $('#lightbox').modal('hide');
 });
 $(document).on('click', '.sortby', function(event) {
+    if ($(this).hasClass('currentsort')) {
+        if ($(this).hasClass('sort-up')) {
+            // switch to negative sort
+            var dir = -1;
+            $(this).removeClass('sort-up');
+            $(this).addClass('sort-down');
+        } else {
+            // switch to positive sort
+            var dir = 1;
+            $(this).removeClass('sort-down');
+            $(this).addClass('sort-up');
+        }
+    } else {
+        // default to positive sort
+        var dir = 1;
+        $('.sortby').removeClass('currentsort');
+        $('.sortby').removeClass('sort-up');
+        $('.sortby').removeClass('sort-down');
+        $(this).addClass('currentsort');
+        $(this).addClass('sort-up');
+    }
     var sortindex = +$(this).data('index');
-    sortBy(sortindex);
-    $('.sortby').removeClass('currentsort');
-    $(this).addClass('currentsort');
+    sortBy(sortindex, dir);
 });
 $(document).on('click', '.filterby', function(event) {
     var u = $('#filterField').val().split(',');
     var u = u.map(function(i) { return parseInt(i); });
     filterBy(u);
 })
-function sortBy(index) {
+function sortBy(index, dir) {
   $('.unitgrid').find('.unit').sort(function (a, b) {
-     return +$(a).eq(0).data('order').split(' ')[index] -
-            +$(b).eq(0).data('order').split(' ')[index];
+     return dir * (+$(a).eq(0).data('order').split(' ')[index] -
+            +$(b).eq(0).data('order').split(' ')[index]);
   }).appendTo('.unitgrid');
 }
 function filterBy(units) {
