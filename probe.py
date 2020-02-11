@@ -56,7 +56,7 @@ else:
 # features: list of activations - one 63305 x c x h x w tensor for each feature
 # layer (defined by settings.FEATURE_NAMES; default is just layer4)
 # maxfeature: the maximum activation across the input map for each channel (e.g. for layer 4, there is a 7x7 input map; what's the max value). one 63305 x c tensor for each feature
-features, maxfeature, preds = fo.feature_extraction(model=model)
+features, maxfeature, preds, logits = fo.feature_extraction(model=model)
 
 # ==== STEP 2: Threshold quantization ====
 thresholds = [fo.quantile_threshold(lf, savepath=f'quantile_{ln}')
@@ -149,8 +149,20 @@ for layername, layer_features, layer_maxfeature, layer_thresholds, layer_preds, 
 if settings.LEVEL == 'neuron':
     # Final layer - neurons that contribute to decisions
     final_weight_np = model.fc.weight.detach().cpu().numpy()
-    final_contrs = contrib.threshold_contributors([None, final_weight_np], alpha_global=0.01)[1]
-    vfinal.generate_final_layer_summary(fo.data, final_weight_np, prev_layername=layernames[-1], prev_tally=prev_tally, contributors=final_contrs)
+    weights = {
+        'weight': [None, final_weight_np],
+        'feat_corr': contrib.get_feat_corr([features[-1].mean(2).mean(2), logits[-1]],
+                                           flattened=True),
+        # TODO: For these, impl features for weight (quantile)
+        #  'act_iou': contrib.get_act_iou(features, thresholds),
+        #  'act_iou_inhib': contrib.get_act_iou_inhib(features, thresholds)
+    }
+    contrs = {
+        name: contrib.threshold_contributors(weight, alpha_global=0.01)
+        for name, weight in weights.items()
+    }
+    contrs_spread = spread_contrs(weights, contrs, layernames)
+    vfinal.generate_final_layer_summary(fo.data, final_weight_np, prev_layername=layernames[-1], prev_tally=prev_tally, contributors=contrs_spread)
 
 if settings.CLEAN:
     clean()

@@ -19,16 +19,25 @@ def flatten_features(feats):
     return np.transpose(feats, (1, 0, 2, 3)).reshape(feats.shape[1], -1)
 
 
-def get_feat_corr(features):
-    # Get correlations between firing patterns across the features
+def get_feat_corr(features, flattened=False):
+    """
+    Get correlations between firing patterns across the features
+
+    If flattened is True, assume features have shape NC rather than NCHW
+    """
     corrs = [None]
-    features_flat = [flatten_features(f) for f in features]
+    if not flattened:
+        features_flat = [flatten_features(f) for f in features]
+    else:
+        features_flat = [f.T for f in features]
     for prev, curr in zip(features_flat, features_flat[1:]):
         # Transpose so we have vectors of activations for any patch anywhere in
         # the dataset
         corr = np.corrcoef(curr, prev)
-        # Get top right - cor(x, y)
-        corr = corr[:curr.shape[0], prev.shape[0]:]
+        # cor(x, x)  cor(x, y)
+        # cor(y, x)  cor(y, y)
+        # Get top right (starts after x.shape, x.shape)
+        corr = corr[:curr.shape[0], curr.shape[0]:]
         corrs.append(corr)
     return corrs
 
