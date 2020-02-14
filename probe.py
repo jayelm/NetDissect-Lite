@@ -162,7 +162,7 @@ if settings.LEVEL == 'neuron':
         for name, weight in weights.items()
     }
     contrs_spread = spread_contrs(weights, contrs, layernames)
-    vfinal.generate_final_layer_summary(fo.data, final_weight_np, prev_layername=layernames[-1], prev_tally=prev_tally, contributors=contrs_spread)
+    vfinal.generate_final_layer_summary(fo.data, final_weight_np, features[-1], thresholds[-1], preds[-1], logits[-1], prev_layername=layernames[-1], prev_tally=prev_tally, contributors=contrs_spread)
 
 if settings.CLEAN:
     clean()

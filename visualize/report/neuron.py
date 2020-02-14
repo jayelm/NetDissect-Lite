@@ -298,11 +298,12 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
                 continue
             contr, inhib = contr_dict['contr']
 
-            contr = np.where(contr[unit])[0]
+            # Increment by 1 since prev_tally starts at 1
+            contr = np.where(contr[unit])[0] + 1
             contr_label_str = ', '.join(f'{u} ({prev_tally.get(u, "unk")})' for u in contr)
             contr_url_str = ','.join(map(str, contr))
 
-            inhib = np.where(inhib[unit])[0]
+            inhib = np.where(inhib[unit])[0] + 1
             inhib_url_str = ','.join(map(str, inhib))
             inhib_label_str = ', '.join(f'{u} ({prev_tally.get(u, "unk")})' for u in inhib)
 
@@ -336,15 +337,15 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
             contr_str +
             '</div>')
         html.append(
-            '<div class="thumbcrop"><img src="%s" height="%d"></div>' %
+            '<div class="thumbcrop"><img loading="lazy" src="%s" height="%d"></div>' %
             (imfn, imscale))
         html.append('<p class="midrule">Other examples of feature (<span class="bluespan">feature mask</span> <span class="redspan">unit mask</span>)</p>')
         html.append(
-            '<div class="thumbcrop"><img src="%s" height="%d"></div>' %
+            '<div class="thumbcrop"><img loading="lazy" src="%s" height="%d"></div>' %
             (row2fn, imscale))
         html.append(f'<p class="midrule">Examples of {neglab}</p>')
         html.append(
-            '<div class="thumbcrop"><img src="%s" height="%d"></div>' %
+            '<div class="thumbcrop"><img loading="lazy" src="%s" height="%d"></div>' %
             (row3fn, imscale))
         html.append('</div') # Leave off > to eat spaces
     html.append('></div>')

@@ -31,6 +31,14 @@ HTML_PREFIX = '''
   font-family: Arial;
   font-size: 15px;
 }
+.final-img {
+    -webkit-mask-size: contain;
+}
+.label:hover {
+    background-color: yellow;
+    color: black;
+    font-weight: bold;
+}
 button {
     cursor: pointer;
 }
@@ -273,6 +281,7 @@ function filterBy(units) {
 }
 
 $(document).ready(function() {
+    // Filter units
     var url = new URL(window.location.href);
     var u = url.searchParams.get('u');
     if (u != null) {
@@ -280,6 +289,28 @@ $(document).ready(function() {
         var us = us.map(function(i) { return parseInt(i); });
         filterBy(us);
     }
+    // Highlight RFs when hovering over image
+    $('.label').hover(
+        // In
+        function(e) {
+            var clname = $(this).data('clname');
+            var unit = $(this).data('unit');
+            $('.final-img[data-clname="' + clname + '"]').each(function(i, e) {
+                var imfn = $(this).data('imfn');
+                var imalpha = imfn.replace('.jpg', '.png');
+                var imalpha = 'image/final/mask-' + unit + '-' + imalpha;
+                $(this).css('-webkit-mask-image', 'url(' + imalpha + ')');
+            });
+        },
+        // Out
+        function(e) {
+            var clname = $(this).data('clname');
+            var unit = $(this).data('unit');
+            $('.final-img[data-clname="' + clname + '"]').each(function(i, e) {
+                $(this).css('-webkit-mask-image', '');
+            });
+        },
+    );
 });
 </script>
 </body>
