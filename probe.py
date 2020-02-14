@@ -59,7 +59,7 @@ else:
 features, maxfeature, preds, logits = fo.feature_extraction(model=model)
 
 # ==== STEP 2: Threshold quantization ====
-thresholds = [fo.quantile_threshold(lf, savepath=f'quantile_{ln}')
+thresholds = [fo.quantile_threshold(lf, savepath=f'quantile_{ln}.npy')
               for lf, ln in zip(features, layernames)]
 
 # ==== New: multilayer case - neuron contributions ====

@@ -174,6 +174,7 @@ class NeuronOperator:
     def quantile_threshold(self, features, savepath=''):
         qtpath = os.path.join(settings.OUTPUT_FOLDER, savepath)
         if savepath and os.path.exists(qtpath):
+            print(f"Loading cached quantiles {qtpath}")
             return np.load(qtpath)
         print("calculating quantile threshold")
         quant = vecquantile.QuantileVector(depth=features.shape[1], seed=1)
