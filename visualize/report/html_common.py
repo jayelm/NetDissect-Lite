@@ -86,6 +86,7 @@ button {
     margin-bottom: 0.25em;
 }
 .unit {
+  width: 500px;
   display: inline-block;
   background: white;
   padding: 3px;

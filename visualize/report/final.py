@@ -59,12 +59,12 @@ def generate_final_layer_summary(ds, weight, last_features, last_thresholds, las
             contr_url_str = ','.join(map(str, contr))
             contr_labels = [f'{u + 1} ({prev_tally.get(u + 1, "unk")}, {w:.3f})' for u, w in
                             sorted(zip(contr, contr_weights), key=lambda x: x[1], reverse=True)]
-            contr_labels = [f'<span class="label contr-label" data-unit="{u}" data-clname="{cl_name}">{l}</span>' for u, l in zip(contr, contr_labels)]
+            contr_labels = [f'<span class="label contr-label" data-unit="{u + 1}" data-clname="{cl_name}">{l}</span>' for u, l in zip(contr, contr_labels)]
 
             inhib_url_str = ','.join(map(str, inhib))
             inhib_labels = [f'{u + 1} ({prev_tally.get(u + 1, "unk")}, {w:.3f})' for u, w in
                             sorted(zip(inhib, inhib_weights), key=lambda x: x[1], reverse=True)]
-            inhib_labels = [f'<span class="label inhib-label" data-unit="{u}" data-clname="{cl_name}">{l}</span>' for u, l in zip(inhib, inhib_labels)]
+            inhib_labels = [f'<span class="label inhib-label" data-unit="{u + 1}" data-clname="{cl_name}">{l}</span>' for u, l in zip(inhib, inhib_labels)]
 
             contr_label_str = ', '.join(contr_labels)
             inhib_label_str = ', '.join(inhib_labels)
