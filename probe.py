@@ -12,6 +12,8 @@ import torch
 import torch.nn.functional as F
 import pickle
 import os
+import pandas as pd
+from loader.data_loader import ade20k
 
 
 def noop(*args, **kwargs):
@@ -57,6 +59,19 @@ else:
 # layer (defined by settings.FEATURE_NAMES; default is just layer4)
 # maxfeature: the maximum activation across the input map for each channel (e.g. for layer 4, there is a 7x7 input map; what's the max value). one 63305 x c tensor for each feature
 features, maxfeature, preds, logits = fo.feature_extraction(model=model)
+
+# ==== STEP 1.5: confusion matrix =====
+pr = preds[-1]
+pred_records = []
+for i, (p, t) in enumerate(pr):
+    pred_name = ade20k.I2S[p]
+    target_name = f'{fo.data.scene(i)}-s'
+    if target_name in ade20k.S2I:
+        pred_records.append((pred_name, target_name))
+
+pred_df = pd.DataFrame.from_records(pred_records, columns=['pred', 'target'])
+pred_df.to_csv(os.path.join(settings.OUTPUT_FOLDER, 'preds.csv'))
+print(f"Accuracy: {(pred_df.pred == pred_df.target).mean():.3f}")
 
 # ==== STEP 2: Threshold quantization ====
 thresholds = [fo.quantile_threshold(lf, savepath=f'quantile_{ln}.npy')
