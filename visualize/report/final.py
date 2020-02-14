@@ -76,36 +76,34 @@ def generate_final_layer_summary(ds, weight, last_features, last_thresholds, las
         # Save images with highest logits
         cl_images = [i for i in range(len(last_features)) if f"{ds.scene(i)}-s" == cl_name]
         cl_images = sorted(cl_images, key=lambda i: last_logits[i, cl], reverse=True)
-        if not cl_images:
-            continue
-        for i, im_index in enumerate(cl_images[:5]):
-            #  breakpoint()
-            imfn = ds.filename(im_index)
-            imfn_base = os.path.basename(imfn)
-            html_imfn = ed.filename(f"html/image/final/{imfn_base}")
-            shutil.copy(imfn, html_imfn)
-            html.append(
-                #  f'<canvas class="mask-canvas" id="{cl_name}-{i}" width="100" height="100" data-src="">Your browser does not support canvas</canvas>"'
-                f'<img loading="lazy" class="final-img" id="{cl_name}-{i}" data-clname="{cl_name}" width="100" height="100" data-imfn="{imfn_base}" src="image/final/{imfn_base}">'
-            )
-            # Save masks
-            for unit in all_contrs:
-                imfn_alpha = imfn_base.replace('.jpg', '.png')
+        if cl_images:
+            for i, im_index in enumerate(cl_images[:5]):
                 #  breakpoint()
-                feats = last_features[im_index, unit]
-                thresh = last_thresholds[unit]
-                mask = (feats > thresh).astype(np.uint8) * 255
-                mask = np.clip(mask, 50, 255)
-                mask = Image.fromarray(mask).resize((settings.IMG_SIZE, settings.IMG_SIZE), resample=Image.BILINEAR)
-                # All black
-                mask_alpha = Image.fromarray(np.zeros((settings.IMG_SIZE, settings.IMG_SIZE), dtype=np.uint8), mode='L')
-                mask_alpha.putalpha(mask)
-                mask_fname = ed.filename(f"html/image/final/mask-{unit}-{imfn_alpha}")
-                mask_alpha.save(mask_fname)
-                # Upscale mask...save asa
+                imfn = ds.filename(im_index)
+                imfn_base = os.path.basename(imfn)
+                html_imfn = ed.filename(f"html/image/final/{imfn_base}")
+                shutil.copy(imfn, html_imfn)
+                html.append(
+                    #  f'<canvas class="mask-canvas" id="{cl_name}-{i}" width="100" height="100" data-src="">Your browser does not support canvas</canvas>"'
+                    f'<img loading="lazy" class="final-img" id="{cl_name}-{i}" data-clname="{cl_name}" width="100" height="100" data-imfn="{imfn_base}" src="image/final/{imfn_base}">'
+                )
+                # Save masks
+                for unit in all_contrs:
+                    imfn_alpha = imfn_base.replace('.jpg', '.png')
+                    #  breakpoint()
+                    feats = last_features[im_index, unit]
+                    thresh = last_thresholds[unit]
+                    mask = (feats > thresh).astype(np.uint8) * 255
+                    mask = np.clip(mask, 50, 255)
+                    mask = Image.fromarray(mask).resize((settings.IMG_SIZE, settings.IMG_SIZE), resample=Image.BILINEAR)
+                    # All black
+                    mask_alpha = Image.fromarray(np.zeros((settings.IMG_SIZE, settings.IMG_SIZE), dtype=np.uint8), mode='L')
+                    mask_alpha.putalpha(mask)
+                    mask_fname = ed.filename(f"html/image/final/mask-{unit}-{imfn_alpha}")
+                    mask_alpha.save(mask_fname)
+                    # Upscale mask...save asa
 
         html.append(f'</div></div>')
-        html.append('<!-- br -->')
 
     html.append(html_common.HTML_SUFFIX);
     with open(html_fname, 'w') as f:
