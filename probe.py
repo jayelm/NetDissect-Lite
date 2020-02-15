@@ -70,8 +70,8 @@ for i, (p, t) in enumerate(pr):
         pred_records.append((pred_name, target_name))
 
 pred_df = pd.DataFrame.from_records(pred_records, columns=['pred', 'target'])
-pred_df.to_csv(os.path.join(settings.OUTPUT_FOLDER, 'preds.csv'))
-print(f"Accuracy: {(pred_df.pred == pred_df.target).mean():.3f}")
+pred_df.to_csv(os.path.join(settings.OUTPUT_FOLDER, 'preds.csv'), index=False)
+print(f"Accuracy: {(pred_df.pred == pred_df.target).mean() * 100:.3f}%")
 
 # ==== STEP 2: Threshold quantization ====
 thresholds = [fo.quantile_threshold(lf, savepath=f'quantile_{ln}.npy')
