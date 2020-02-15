@@ -190,7 +190,6 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
             # ==== ROW 1: TOP PATCH IMAGES ====
             img_ann = []
             for index in top[unit]:
-                # Breakpoint
                 pred, target = preds[index]
                 pred_name = ade20k.I2S[pred]
                 target_name = f'{ds.scene(index)}-s'
@@ -296,16 +295,11 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
             contr_dict = contributors[contr_name]
             if contr_dict['contr'][0] is None:
                 continue
+            weight = contr_dict['weight']
             contr, inhib = contr_dict['contr']
 
-            # Increment by 1 since prev_tally starts at 1
-            contr = np.where(contr[unit])[0] + 1
-            contr_label_str = ', '.join(f'{u} ({prev_tally.get(u, "unk")})' for u in contr)
-            contr_url_str = ','.join(map(str, contr))
-
-            inhib = np.where(inhib[unit])[0] + 1
-            inhib_url_str = ','.join(map(str, inhib))
-            inhib_label_str = ', '.join(f'{u} ({prev_tally.get(u, "unk")})' for u in inhib)
+            contr_url_str, contr_label_str, contr = html_common.to_labels(unit, contr, weight, prev_tally)
+            inhib_url_str, inhib_label_str, inhib = html_common.to_labels(unit, inhib, weight, prev_tally)
 
             show = 'show' if contr_i == 0 else ''
 

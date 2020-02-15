@@ -49,25 +49,13 @@ def generate_final_layer_summary(ds, weight, last_features, last_thresholds, las
             if contr_dict['contr'][0] is None:
                 continue
             contr, inhib = contr_dict['contr']
-            contr = np.where(contr[cl])[0]
-            contr_weights = contr_dict['weight'][cl, contr]
+            weight = contr_dict['weight']
+            contr_url_str, contr_label_str, contr = html_common.to_labels(
+                cl, contr, weight, prev_tally, uname=cl_name)
+            inhib_url_str, inhib_label_str, inhib = html_common.to_labels(
+                cl, inhib, weight, prev_tally, uname=cl_name)
+
             all_contrs.extend(contr)
-
-            inhib = np.where(inhib[cl])[0]
-            inhib_weights = contr_dict['weight'][cl, inhib]
-
-            contr_url_str = ','.join(map(str, contr))
-            contr_labels = [f'{u + 1} ({prev_tally.get(u + 1, "unk")}, {w:.3f})' for u, w in
-                            sorted(zip(contr, contr_weights), key=lambda x: x[1], reverse=True)]
-            contr_labels = [f'<span class="label contr-label" data-unit="{u + 1}" data-clname="{cl_name}">{l}</span>' for u, l in zip(contr, contr_labels)]
-
-            inhib_url_str = ','.join(map(str, inhib))
-            inhib_labels = [f'{u + 1} ({prev_tally.get(u + 1, "unk")}, {w:.3f})' for u, w in
-                            sorted(zip(inhib, inhib_weights), key=lambda x: x[1], reverse=True)]
-            inhib_labels = [f'<span class="label inhib-label" data-unit="{u + 1}" data-clname="{cl_name}">{l}</span>' for u, l in zip(inhib, inhib_labels)]
-
-            contr_label_str = ', '.join(contr_labels)
-            inhib_label_str = ', '.join(inhib_labels)
 
             html.append(
                 f'<p class="contributors"><a href="{prev_layername}.html?u={contr_url_str}">Contributors ({contr_name}): {contr_label_str}</a></p>'
@@ -80,28 +68,25 @@ def generate_final_layer_summary(ds, weight, last_features, last_thresholds, las
         cl_images = sorted(cl_images, key=lambda i: last_logits[i, cl], reverse=True)
         if cl_images:
             for i, im_index in enumerate(cl_images[:5]):
-                #  breakpoint()
                 imfn = ds.filename(im_index)
                 imfn_base = os.path.basename(imfn)
                 html_imfn = ed.filename(f"html/image/final/{imfn_base}")
                 shutil.copy(imfn, html_imfn)
                 html.append(
-                    #  f'<canvas class="mask-canvas" id="{cl_name}-{i}" width="100" height="100" data-src="">Your browser does not support canvas</canvas>"'
-                    f'<img loading="lazy" class="final-img" id="{cl_name}-{i}" data-clname="{cl_name}" width="100" height="100" data-imfn="{imfn_base}" src="image/final/{imfn_base}">'
+                    f'<img loading="lazy" class="final-img" id="{cl_name}-{i}" data-uname="{cl_name}" width="100" height="100" data-imfn="{imfn_base}" src="image/final/{imfn_base}">'
                 )
                 # Save masks
-                for unit in all_contrs:
+                for cunit in all_contrs:
                     imfn_alpha = imfn_base.replace('.jpg', '.png')
-                    #  breakpoint()
-                    feats = last_features[im_index, unit]
-                    thresh = last_thresholds[unit]
+                    feats = last_features[im_index, cunit]
+                    thresh = last_thresholds[cunit]
                     mask = (feats > thresh).astype(np.uint8) * 255
                     mask = np.clip(mask, 50, 255)
                     mask = Image.fromarray(mask).resize((settings.IMG_SIZE, settings.IMG_SIZE), resample=Image.BILINEAR)
                     # All black
                     mask_alpha = Image.fromarray(np.zeros((settings.IMG_SIZE, settings.IMG_SIZE), dtype=np.uint8), mode='L')
                     mask_alpha.putalpha(mask)
-                    mask_fname = ed.filename(f"html/image/final/mask-{unit}-{imfn_alpha}")
+                    mask_fname = ed.filename(f"html/image/final/mask-{cunit + 1}-{imfn_alpha}")
                     mask_alpha.save(mask_fname)
                     # Upscale mask...save asa
 

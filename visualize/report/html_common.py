@@ -1,3 +1,9 @@
+"""
+Common HTML viz utilities
+"""
+
+import numpy as np
+
 FILTERBOX = '''
 <input type="text" placeholder="Filter by unit" id="filterField">
 <button type="button" class="filterby">Filter</button>
@@ -9,6 +15,28 @@ sort by
 {}
 </div>
 '''
+
+
+def to_labels(unit, contr, weight, prev_unit_names, uname=None):
+    """
+    :param contr: binary ndarray of curr units x
+    prev units; 1 if prev unit contributets to
+    curr unit
+    :param weight: continuous ndarray of curr units x prev units; contains the actual weights from which contr was binarized
+    :param prev_unit_names: map from units to their names, *one-indexed*
+    :param uname: if provided, use this as the unit name
+    """
+    contr = np.where(contr[unit])[0]
+    weight = weight[unit, contr]
+    contr_labels = [
+        f'<span class="label contr-label" data-unit="{u + 1}" data-uname="{uname}">{u + 1} ({prev_unit_names.get(u + 1, "unk")}, {w:.3f})</span>'
+        for u, w in
+        sorted(zip(contr, weight), key=lambda x: x[1], reverse=True)
+    ]
+    contr_label_str = ', '.join(contr_labels)
+    contr_url_str = ','.join(map(str, [c + 1 for c in contr]))
+    return contr_url_str, contr_label_str, contr
+
 
 def get_sortheader(names):
     return HTML_SORTHEADER.format(
@@ -294,20 +322,21 @@ $(document).ready(function() {
     $('.label').hover(
         // In
         function(e) {
-            var clname = $(this).data('clname');
+            var uname = $(this).data('uname');
             var unit = $(this).data('unit');
-            $('.final-img[data-clname="' + clname + '"]').each(function(i, e) {
+            $('.final-img[data-uname="' + uname + '"]').each(function(i, e) {
                 var imfn = $(this).data('imfn');
                 var imalpha = imfn.replace('.jpg', '.png');
                 var imalpha = 'image/final/mask-' + unit + '-' + imalpha;
+                console.log('Loading ' + imalpha);
                 $(this).css('-webkit-mask-image', 'url(' + imalpha + ')');
             });
         },
         // Out
         function(e) {
-            var clname = $(this).data('clname');
+            var uname = $(this).data('uname');
             var unit = $(this).data('unit');
-            $('.final-img[data-clname="' + clname + '"]').each(function(i, e) {
+            $('.final-img[data-uname="' + uname + '"]').each(function(i, e) {
                 $(this).css('-webkit-mask-image', '');
             });
         },

@@ -71,7 +71,7 @@ for i, (p, t) in enumerate(pr):
 
 pred_df = pd.DataFrame.from_records(pred_records, columns=['pred', 'target'])
 pred_df.to_csv(os.path.join(settings.OUTPUT_FOLDER, 'preds.csv'), index=False)
-print(f"Accuracy: {(pred_df.pred == pred_df.target).mean() * 100:.3f}%")
+print(f"Accuracy: {(pred_df.pred == pred_df.target).mean() * 100:.2f}%")
 
 # ==== STEP 2: Threshold quantization ====
 thresholds = [fo.quantile_threshold(lf, savepath=f'quantile_{ln}.npy')
