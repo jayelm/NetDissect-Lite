@@ -6,6 +6,14 @@ TODO: get high firing images when neuron fires past threshold
 
 import numpy as np
 from scipy.spatial.distance import cdist
+from skimage.measure import block_reduce
+
+
+def reduce_feats(prev, curr):
+    assert prev.shape[2] > curr.shape[2]
+    # Do pooling over previous layer
+    kernel_size = (prev.shape[2] // curr.shape[2], prev.shape[3] // curr.shape[3])
+    return block_reduce(prev, (1, 1, *kernel_size), np.mean)
 
 
 def flatten_features(feats):
@@ -26,35 +34,49 @@ def get_feat_corr(features, flattened=False):
     If flattened is True, assume features have shape NC rather than NCHW
     """
     corrs = [None]
-    if not flattened:
-        features_flat = [flatten_features(f) for f in features]
-    else:
-        features_flat = [f.T for f in features]
-    for prev, curr in zip(features_flat, features_flat[1:]):
+    for prev, curr in zip(features, features[1:]):
+        if not flattened:
+            if prev.shape[2:] != curr.shape[2:]:
+                prev = reduce_feats(prev, curr)
+
+            prev_flat = flatten_features(prev)
+            curr_flat = flatten_features(curr)
+        else:
+            prev_flat = prev.T
+            curr_flat = curr.T
         # Transpose so we have vectors of activations for any patch anywhere in
         # the dataset
-        corr = np.corrcoef(curr, prev)
+        corr = np.corrcoef(curr_flat, prev_flat)
         # cor(x, x)  cor(x, y)
         # cor(y, x)  cor(y, y)
         # Get top right (starts after x.shape, x.shape)
-        corr = corr[:curr.shape[0], curr.shape[0]:]
+        corr = corr[:curr_flat.shape[0], curr_flat.shape[0]:]
         corrs.append(corr)
     return corrs
 
 
-def get_act_iou(features, threshold):
+def get_act_iou(features, threshold, mode='contr'):
     """
     Jaccard similarity between "active" neurons, where activations are defined
     via thresholds
     """
+    if mode not in {'contr', 'inhib'}:
+        raise ValueError(mode)
     # Get jaccard similarity between "active" neurons (where activations are
     # Get correlations between firing patterns across the features
     ious = [None]
-    features_flat = [flatten_features(f) for f in features]
-    for prev, curr, prev_thresh, curr_thresh in zip(features_flat, features_flat[1:],
+    for prev, curr, prev_thresh, curr_thresh in zip(features, features[1:],
                                                     threshold, threshold[1:]):
+        if prev.shape[2:] != curr.shape[2:]:
+            prev = reduce_feats(prev, curr)
+        prev = flatten_features(prev)
+        curr = flatten_features(curr)
+
         curr_acts = curr > curr_thresh[:, np.newaxis]
         prev_acts = prev > prev_thresh[:, np.newaxis]
+
+        if mode == 'inhib':
+            curr_acts = 1 - curr_acts
 
         iou = 1 - cdist(curr_acts, prev_acts, metric='jaccard')
         ious.append(iou)
@@ -67,18 +89,7 @@ def get_act_iou_inhib(features, threshold):
     Jaccard similarity between active neurons of previous layer and inactive
     neurons of current layer, where activations are defined via thresholds
     """
-    # Get jaccard similarity between "active" neurons (where activations are
-    # Get correlations between firing patterns across the features
-    ious = [None]
-    features_flat = [flatten_features(f) for f in features]
-    for prev, curr, prev_thresh, curr_thresh in zip(features_flat, features_flat[1:],
-                                                    threshold, threshold[1:]):
-        curr_acts = 1 - (curr > curr_thresh[:, np.newaxis])
-        prev_acts = prev > prev_thresh[:, np.newaxis]
-
-        iou = 1 - cdist(curr_acts, prev_acts, metric='jaccard')
-        ious.append(iou)
-    return ious
+    return get_act_iou(features, threshold, mode='inhib')
 
 
 def get_weights(modules):

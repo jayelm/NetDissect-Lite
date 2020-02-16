@@ -90,8 +90,7 @@ if settings.CONTRIBUTIONS:
         weights = {
             'weight': contrib.get_weights(hook_modules),
             'feat_corr': contrib.get_feat_corr(features),
-            'act_iou': contrib.get_act_iou(features, thresholds),
-            'act_iou_inhib': contrib.get_act_iou_inhib(features, thresholds)
+            'act_iou': contrib.get_act_iou(features, thresholds)
         }
         contrs = {
             name: contrib.threshold_contributors(weight, alpha_global=0.01)

@@ -84,6 +84,10 @@ if MODEL not in {'resnet18', 'renset101', 'conv4'}:
 if MODEL == 'resnet18':
     # For contributions
     FEATURE_NAMES = [['layer4', '1', 'conv1'], ['layer4', '1', 'conv2']]
+    #  FEATURE_NAMES = [
+        #  ['layer3', '0', 'conv1'], ['layer3', '0', 'conv2'], ['layer3', '1', 'conv1'], ['layer3', '1', 'conv2'],
+        #  ['layer4', '0', 'conv1'], ['layer4', '0', 'conv2'], ['layer4', '1', 'conv1'], ['layer4', '1', 'conv2'],
+    #  ]
     #  FEATURE_NAMES = ['layer4']
 elif MODEL == 'resnet101':
     FEATURE_NAMES = ['layer4']
