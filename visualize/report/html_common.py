@@ -141,7 +141,7 @@ button {
    color: silver;
 }
 .thumbcrop {
-    width: 500px;
+    width: 750px;
     display: inline-block;
     white-space: nowrap;
     overflow-x: scroll;
@@ -167,7 +167,7 @@ background-color: #FF7F7F;
     margin-bottom: 0.25em;
 }
 .unit {
-  width: 500px;
+  width: 750px;
   display: inline-block;
   background: white;
   padding: 3px;
@@ -403,8 +403,11 @@ $(document).ready(function() {
         function(e) {
             var uname = $(this).data('uname');
             var unit = $(this).data('unit');
-            $('.final-img[data-uname="' + uname + '"]').each(function(i, e) {
-                $(this).css('-webkit-mask-image', '');
+            $('.mask-img[data-uname="' + uname + '"]').each(function(i, e) {
+                var imfn = $(this).data('imfn');
+                var imalpha = 'image/mask-' + uname + '-' + imfn;
+                console.log('Restoring ' + imalpha);
+                $(this).css('-webkit-mask-image', 'url(' + imalpha + ')');
             });
         },
     );
