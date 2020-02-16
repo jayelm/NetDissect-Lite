@@ -22,7 +22,7 @@ import shutil
 
 def generate_final_layer_summary(ds, weight, last_features, last_thresholds, last_preds, last_logits, prev_layername=None, prev_tally=None, contributors=None):
     ed = expdir.ExperimentDirectory(settings.OUTPUT_FOLDER)
-    ed.ensure_dir('html', 'image', 'final')
+    ed.ensure_dir('html', 'image')
 
     html_fname = ed.filename(f"html/{expdir.fn_safe('final')}.html")
 
@@ -70,25 +70,17 @@ def generate_final_layer_summary(ds, weight, last_features, last_thresholds, las
             for i, im_index in enumerate(cl_images[:5]):
                 imfn = ds.filename(im_index)
                 imfn_base = os.path.basename(imfn)
-                html_imfn = ed.filename(f"html/image/final/{imfn_base}")
+                html_imfn = ed.filename(f"html/image/{imfn_base}")
                 shutil.copy(imfn, html_imfn)
                 html.append(
-                    f'<img loading="lazy" class="final-img" id="{cl_name}-{i}" data-uname="{cl_name}" width="100" height="100" data-imfn="{imfn_base}" src="image/final/{imfn_base}">'
+                    f'<img loading="lazy" class="mask-img" id="{cl_name}-{i}" data-uname="{cl_name}" width="100" height="100" data-imfn="{imfn_base}" src="image/{imfn_base}">'
                 )
                 # Save masks
                 for cunit in all_contrs:
                     imfn_alpha = imfn_base.replace('.jpg', '.png')
-                    feats = last_features[im_index, cunit]
-                    thresh = last_thresholds[cunit]
-                    mask = (feats > thresh).astype(np.uint8) * 255
-                    mask = np.clip(mask, 50, 255)
-                    mask = Image.fromarray(mask).resize((settings.IMG_SIZE, settings.IMG_SIZE), resample=Image.BILINEAR)
-                    # All black
-                    mask_alpha = Image.fromarray(np.zeros((settings.IMG_SIZE, settings.IMG_SIZE), dtype=np.uint8), mode='L')
-                    mask_alpha.putalpha(mask)
-                    mask_fname = ed.filename(f"html/image/final/mask-{cunit + 1}-{imfn_alpha}")
-                    mask_alpha.save(mask_fname)
-                    # Upscale mask...save asa
+                    mask = html_common.create_mask(im_index, cunit, last_features, last_thresholds, settings.IMG_SIZE)
+                    mask_fname = ed.filename(f"html/image/mask-{cunit + 1}-{imfn_alpha}")
+                    mask.save(mask_fname)
 
         html.append(f'</div></div>')
 

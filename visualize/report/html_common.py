@@ -3,6 +3,9 @@ Common HTML viz utilities
 """
 
 import numpy as np
+from PIL import Image
+import settings
+
 
 FILTERBOX = '''
 <input type="text" placeholder="Filter by unit" id="filterField">
@@ -17,6 +20,45 @@ sort by
 '''
 
 
+def wrap_image(html, wrapper_classes=None, infos=None):
+    """
+    Wrap an image tag with image wrapper stuff
+    """
+    if wrapper_classes is None:
+        wrapper_classes = []
+    if infos is None:
+        infos = []
+
+    wrc = ' ' + ' '.join(wrapper_classes)
+    info_htmls = [f'<p>{i}</p>' for i in infos]
+
+    wr_htmls = [
+        f'<div class="img-wrapper{wrc}">',
+        f'<div class="img-background">',
+        html,
+        f'</div>',
+        f'<div class="img-wrapper-info">',
+        *info_htmls,
+        f'</div>',
+        f'</div>'
+    ]
+    return ''.join(wr_htmls)
+
+
+def create_mask(index, unit, features, thresholds, imsize=settings.IMG_SIZE):
+    feats = features[index, unit]
+    thresh = thresholds[unit]
+    mask = (feats > thresh).astype(np.uint8) * 255
+    mask = np.clip(mask, 50, 255)
+    if settings.PROBE_DATASET == 'cub':
+        mask = mask.T
+    mask = Image.fromarray(mask).resize((imsize, imsize), resample=Image.NEAREST)
+    # All black
+    mask_alpha = Image.fromarray(np.zeros((imsize, imsize), dtype=np.uint8), mode='L')
+    mask_alpha.putalpha(mask)
+    return mask_alpha
+
+
 def to_labels(unit, contr, weight, prev_unit_names, uname=None):
     """
     :param contr: binary ndarray of curr units x
@@ -28,6 +70,8 @@ def to_labels(unit, contr, weight, prev_unit_names, uname=None):
     """
     contr = np.where(contr[unit])[0]
     weight = weight[unit, contr]
+    if uname is None:
+        uname = unit + 1
     contr_labels = [
         f'<span class="label contr-label" data-unit="{u + 1}" data-uname="{uname}">{u + 1} ({prev_unit_names.get(u + 1, "unk")}, {w:.3f})</span>'
         for u, w in
@@ -59,7 +103,7 @@ HTML_PREFIX = '''
   font-family: Arial;
   font-size: 15px;
 }
-.final-img {
+.mask-img {
     -webkit-mask-size: contain;
 }
 .label:hover {
@@ -97,9 +141,18 @@ button {
    color: silver;
 }
 .thumbcrop {
-  overflow: hidden;
-  width: 288px;
-  height: 72px;
+    width: 500px;
+    display: inline-block;
+    white-space: nowrap;
+    overflow-x: scroll;
+}
+.img-wrapper {
+}
+.correct {
+background-color: #90EE90;
+}
+.incorrect {
+background-color: #FF7F7F;
 }
 .contr {
 }
@@ -143,6 +196,11 @@ button {
 }
 .img-wrapper {
   text-align: center;
+  display: inline-block;
+}
+.img-background {
+    background-color: #333;
+    display: inline-block;
 }
 .big-modal img {
   max-height: 60vh;
@@ -212,7 +270,9 @@ HTML_SUFFIX = '''
       </div>
       <div class="modal-body">
         <div class="img-wrapper img-scroller">
-          <img class="fullsize img-fluid" src="//:0">
+          <div class="img-background">
+            <img class="fullsize img-fluid" src="//:0">
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -226,6 +286,7 @@ HTML_SUFFIX = '''
 $('img:not([data-nothumb])[src]').wrap(function() {
   var result = $('<a data-toggle="lightbox">')
   result.attr('href', $(this).attr('src'));
+  result.attr('data-style', $(this).attr('style'));
   var caption = $(this).closest('figure').find('figcaption').text();
   if (!caption && $(this).closest('.citation').length) {
     caption = $(this).closest('.citation').text();
@@ -245,6 +306,12 @@ $('img:not([data-nothumb])[src]').wrap(function() {
 });
 $(document).on('click', '[data-toggle=lightbox]', function(event) {
     $('#lightbox img').attr('src', $(this).attr('href'));
+    var maskStyle = $(this).data('style');
+    if (maskStyle != undefined) {
+        $('#lightbox img').attr('style', $(this).data('style'));
+    } else {
+        $('#lightbox img').removeAttr('style');
+    }
     $('#lightbox .modal-title').text($(this).data('title') ||
        $(this).closest('.unit').find('.unitlabel').text());
     $('#lightbox .footer-caption').text($(this).data('footer') ||
@@ -324,10 +391,10 @@ $(document).ready(function() {
         function(e) {
             var uname = $(this).data('uname');
             var unit = $(this).data('unit');
-            $('.final-img[data-uname="' + uname + '"]').each(function(i, e) {
+            $('.mask-img[data-uname="' + uname + '"]').each(function(i, e) {
                 var imfn = $(this).data('imfn');
                 var imalpha = imfn.replace('.jpg', '.png');
-                var imalpha = 'image/final/mask-' + unit + '-' + imalpha;
+                var imalpha = 'image/mask-' + unit + '-' + imalpha;
                 console.log('Loading ' + imalpha);
                 $(this).css('-webkit-mask-image', 'url(' + imalpha + ')');
             });
