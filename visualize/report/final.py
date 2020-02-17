@@ -14,7 +14,7 @@ import settings
 import numpy as np
 from PIL import Image
 import warnings
-from tqdm import tqdm
+from tqdm import tqdm, trange
 import loader.data_loader.formula as F
 import os
 import shutil
@@ -35,7 +35,7 @@ def generate_final_layer_summary(ds, weight, last_features, last_thresholds, las
     # Loop through classes
     # Last layer of contributors
     contributors = contributors[-1]
-    for cl in range(weight.shape[0]):
+    for cl in trange(weight.shape[0], desc='Final classes'):
         # TODO: Make this compatible with non-ade20k
         cl_name = ade20k.I2S[cl]
         html.append(
