@@ -65,8 +65,10 @@ def fix(s):
 
 def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, thresholds=None,
         imsize=None, imscale=72, tally_result=None,
-        contributors=None, prev_layername=None, prev_tally=None,
-        gridwidth=None, gap=3, limit=None, force=False, verbose=False):
+        contributors=None, prev_layername=None, prev_tally=None, prev_features=None, prev_thresholds=None,
+        gridwidth=None, gap=3, limit=None, force=False, verbose=False, skip=False):
+    if skip:
+        return
     ed = expdir.ExperimentDirectory(settings.OUTPUT_FOLDER)
     print('Generating html summary %s' % ed.filename('html/%s.html' % expdir.fn_safe(layer)))
     if verbose:
@@ -245,17 +247,24 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
             target_name = f'{ds.scene(index)}-s'
             wrclass = 'correct 'if pred_name == target_name else 'incorrect'
 
-            img_html = f'<img loading="lazy" class="mask-img" src="{html_imfn}" height="{imscale}" style="-webkit-mask-image: url(image/mask-{unit + 1}-{html_imfn_alpha})" id="{unit + 1}-{i}" data-uname="{unit + 1}" data-imfn="{html_imfn_alpha}">'
+            img_html = f'<img loading="lazy" class="mask-img" data-masked="true" src="{html_imfn}" height="{imscale}" style="-webkit-mask-image: url(image/this-mask-{unit + 1}-{html_imfn_alpha})" id="{unit + 1}-{i}" data-uname="{unit + 1}" data-imfn="{html_imfn_alpha}">'
             img_infos = [f'pred = {pred_name}', f'target = {target_name}']
             html.append(
                 html_common.wrap_image(img_html, wrapper_classes=[wrclass], infos=img_infos)
             )
 
             # Load default mask for this unit
-            for cunit in [unit, *all_contrs]:
+            unit_maskfn = f"this-mask-{unit + 1}-{html_imfn_alpha}"
+            if force or not ed.has(f"html/image/{unit_maskfn}"):
+                # CURRENT features
+                mask = html_common.create_mask(index, unit, features, thresholds)
+                mask.save(ed.filename(f"html/image/{unit_maskfn}"))
+
+            for cunit in all_contrs:
+                # PREVIOUS features
                 maskfn = f"mask-{cunit + 1}-{html_imfn_alpha}"
                 if force or not ed.has(f"html/image/{maskfn}"):
-                    mask = html_common.create_mask(index, cunit, features, thresholds)
+                    mask = html_common.create_mask(index, cunit, prev_features, prev_thresholds)
                     mask.save(ed.filename(f"html/image/{maskfn}"))
 
         html.append('</div>')
@@ -288,8 +297,9 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
             iou = intersection / (union + 1e-10)
             lbl = f"{iou:.3f}"
 
-            img_masked = add_colored_masks(img, feat_mask, unit_mask)
-            Image.fromarray(img_masked).save(ed.filename(f'html/{row2fns[i]}'))
+            if force or not ed.has(f"html/{row2fns[i]}"):
+                img_masked = add_colored_masks(img, feat_mask, unit_mask)
+                Image.fromarray(img_masked).save(ed.filename(f'html/{row2fns[i]}'))
             img_html = f'<img loading="lazy" src="{row2fns[i]}" height="{imscale}">'
             html.append(
                 html_common.wrap_image(img_html, infos=[f'IoU = {lbl}'])
@@ -326,8 +336,9 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
             iou = intersection / (union + 1e-10)
             lbl = f"{iou:.3f}"
 
-            img_masked = add_colored_masks(img, feat_mask, unit_mask)
-            Image.fromarray(img_masked).save(ed.filename(f'html/{row3fns[i]}'))
+            if force or not ed.has(f"html/{row3fns[i]}"):
+                img_masked = add_colored_masks(img, feat_mask, unit_mask)
+                Image.fromarray(img_masked).save(ed.filename(f'html/{row3fns[i]}'))
             img_html = f'<img loading="lazy" src="{row3fns[i]}" height="{imscale}">'
             html.append(
                 html_common.wrap_image(img_html, infos=[f'IoU = {lbl}'])

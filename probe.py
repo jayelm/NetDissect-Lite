@@ -3,7 +3,7 @@ from loader.model_loader import loadmodel
 from dissection.neuron import hook_feature, NeuronOperator
 from dissection.representation import ReprOperator
 from dissection import contrib
-from visualize.report import neuron as vneuron, representation as vrepr, final as vfinal
+from visualize.report import neuron as vneuron, representation as vrepr, final as vfinal, index as vindex
 from util.clean import clean
 from util.misc import safe_layername
 from tqdm import tqdm
@@ -106,11 +106,11 @@ else:
 
 # Zip it all together
 ranger = tqdm(zip(layernames, features, maxfeature, thresholds, preds, [None, *layernames],
-                  contrs_spread),
+                  [None, *features], [None, *thresholds], contrs_spread),
               total=len(layernames))
 
-prev_tally = None
-for layername, layer_features, layer_maxfeature, layer_thresholds, layer_preds, prev_layername, layer_contrs in ranger:
+tallies = [None]
+for layername, layer_features, layer_maxfeature, layer_thresholds, layer_preds, prev_layername, prev_features, prev_thresholds, layer_contrs in ranger:
     ranger.set_description(f'Layer {layername}')
     if settings.LEVEL == 'neuron':
 
@@ -130,13 +130,15 @@ for layername, layer_features, layer_maxfeature, layer_thresholds, layer_preds, 
                                       maxfeature=layer_maxfeature,
                                       features=layer_features,
                                       prev_layername=prev_layername,
-                                      prev_tally=prev_tally,
+                                      prev_tally=tallies[-1],
+                                      prev_features=prev_features,
+                                      prev_thresholds=prev_thresholds,
                                       thresholds=layer_thresholds,
-                                      force=False)
+                                      force=True, skip=False)
 
-        prev_tally = {
+        tallies.append({
             record['unit']: record['label'] for record in tally_result
-        }
+        })
     else:
         # Representation (neuralese) search
 
@@ -175,8 +177,16 @@ if settings.LEVEL == 'neuron':
         name: contrib.threshold_contributors(weight, alpha_global=0.01)
         for name, weight in weights.items()
     }
-    contrs_spread = spread_contrs(weights, contrs, layernames)
-    vfinal.generate_final_layer_summary(fo.data, final_weight_np, features[-1], thresholds[-1], preds[-1], logits[-1], prev_layername=layernames[-1], prev_tally=prev_tally, contributors=contrs_spread)
+    final_contrs_spread = spread_contrs(weights, contrs, [1, 2])
+    vfinal.generate_final_layer_summary(fo.data, final_weight_np, features[-1], thresholds[-1], preds[-1], logits[-1], prev_layername=layernames[-1], prev_tally=tallies[-1], contributors=contrs_spread)
+
+
+# ==== STEP 6: generate index html ====
+# Add last contrs and tallies:
+contrs_spread.append(final_contrs_spread[-1])
+# One index the tallies
+tallies.append({k + 1: v for k, v in ade20k.I2S.items()})
+vindex.generate_index(layernames, contrs_spread, tallies)
 
 if settings.CLEAN:
     clean()

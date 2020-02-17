@@ -73,7 +73,7 @@ def generate_final_layer_summary(ds, weight, last_features, last_thresholds, las
                 html_imfn = ed.filename(f"html/image/{imfn_base}")
                 shutil.copy(imfn, html_imfn)
                 html.append(
-                    f'<img loading="lazy" class="mask-img" id="{cl_name}-{i}" data-uname="{cl_name}" width="100" height="100" data-imfn="{imfn_base}" src="image/{imfn_base}">'
+                    f'<img loading="lazy" class="mask-img" id="{cl_name}-{i}" data-masked="false" data-uname="{cl_name}" width="100" height="100" data-imfn="{imfn_base}" src="image/{imfn_base}">'
                 )
                 # Save masks
                 for cunit in all_contrs:
