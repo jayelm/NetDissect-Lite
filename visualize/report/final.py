@@ -20,7 +20,9 @@ import os
 import shutil
 
 
-def generate_final_layer_summary(ds, weight, last_features, last_thresholds, last_preds, last_logits, prev_layername=None, prev_tally=None, contributors=None):
+def generate_final_layer_summary(ds, weight, last_features, last_thresholds, last_preds, last_logits, prev_layername=None, prev_tally=None, contributors=None, skip=False):
+    if skip:
+        return
     ed = expdir.ExperimentDirectory(settings.OUTPUT_FOLDER)
     ed.ensure_dir('html', 'image')
 
@@ -49,6 +51,8 @@ def generate_final_layer_summary(ds, weight, last_features, last_thresholds, las
             if contr_dict['contr'][0] is None:
                 continue
             contr, inhib = contr_dict['contr']
+            if contr.shape[0] != weight.shape[0]:
+                raise RuntimeError(f"Probably mismatched contrs: weight shape {weight.shape} contr shape {contr.shape}")
             weight = contr_dict['weight']
             contr_url_str, contr_label_str, contr = html_common.to_labels(
                 cl, contr, weight, prev_tally, uname=cl_name)
