@@ -57,7 +57,7 @@ def generate_final_layer_summary(ds, weight, last_features, last_thresholds, las
             contr_url_str, contr_label_str, contr = html_common.to_labels(
                 cl, contr, weight, prev_tally, uname=cl_name)
             inhib_url_str, inhib_label_str, inhib = html_common.to_labels(
-                cl, inhib, weight, prev_tally, uname=cl_name)
+                cl, inhib, weight, prev_tally, uname=cl_name, label_class="inhib-label")
 
             all_contrs.extend(contr)
 
@@ -76,8 +76,9 @@ def generate_final_layer_summary(ds, weight, last_features, last_thresholds, las
                 imfn_base = os.path.basename(imfn)
                 html_imfn = ed.filename(f"html/image/{imfn_base}")
                 shutil.copy(imfn, html_imfn)
+                img_html = f'<img loading="lazy" class="mask-img" id="{cl_name}-{i}" data-masked="false" data-uname="{cl_name}" width="100" height="100" data-imfn="{imfn_base}" src="image/{imfn_base}">'
                 html.append(
-                    f'<img loading="lazy" class="mask-img" id="{cl_name}-{i}" data-masked="false" data-uname="{cl_name}" width="100" height="100" data-imfn="{imfn_base}" src="image/{imfn_base}">'
+                    html_common.wrap_image(img_html)
                 )
                 # Save masks
                 for cunit in all_contrs:

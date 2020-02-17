@@ -199,7 +199,7 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
 
             contr_url_str, contr_label_str, contr = html_common.to_labels(unit, contr, weight, prev_tally)
             all_contrs.extend(contr)
-            inhib_url_str, inhib_label_str, inhib = html_common.to_labels(unit, inhib, weight, prev_tally)
+            inhib_url_str, inhib_label_str, inhib = html_common.to_labels(unit, inhib, weight, prev_tally, label_class="inhib-label")
 
             show = 'show' if contr_i == 0 else ''
 

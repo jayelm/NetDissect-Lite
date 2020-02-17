@@ -59,7 +59,7 @@ def create_mask(index, unit, features, thresholds, imsize=settings.IMG_SIZE):
     return mask_alpha
 
 
-def to_labels(unit, contr, weight, prev_unit_names, uname=None):
+def to_labels(unit, contr, weight, prev_unit_names, uname=None, label_class="contr-label"):
     """
     :param contr: binary ndarray of curr units x
     prev units; 1 if prev unit contributets to
@@ -73,7 +73,7 @@ def to_labels(unit, contr, weight, prev_unit_names, uname=None):
     if uname is None:
         uname = unit + 1
     contr_labels = [
-        f'<span class="label contr-label" data-unit="{u + 1}" data-uname="{uname}">{u + 1} ({prev_unit_names.get(u + 1, "unk")}, {w:.3f})</span>'
+        f'<span class="label {label_class}" data-unit="{u + 1}" data-uname="{uname}">{u + 1} ({prev_unit_names.get(u + 1, "unk")}, {w:.3f})</span>'
         for u, w in
         sorted(zip(contr, weight), key=lambda x: x[1], reverse=True)
     ]
@@ -387,7 +387,7 @@ $(document).ready(function() {
         filterBy(us);
     }
     // Highlight RFs when hovering over image
-    $('.label').hover(
+    $('.contr-label').hover(
         // In
         function(e) {
             var uname = $(this).data('uname');

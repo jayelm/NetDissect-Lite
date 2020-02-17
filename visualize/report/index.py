@@ -40,7 +40,8 @@ def generate_index(layernames, contrs, tallies):
         f'<a href="final.html"><h5>Final decisions</h5></a>'
     )
 
-    tree_data = tree.make_treedata(contrs, tallies)
+    tree_data = tree.make_treedata(contrs, tallies, units=range(1, 365, 10),
+                                   maxchildren=3, maxdepth=4)
     tree_data_str = json.dumps(tree_data)
     tree_data_str = f"<script>var treeData = {tree_data_str};</script>"
     html.append(tree_data_str)

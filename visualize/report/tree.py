@@ -6,13 +6,15 @@ import json
 import numpy as np
 
 
-def make_treedata(contrs, tallies, by='feat_corr', root_collapsed=False, collapsed=True, root_name='resnet18'):
+def make_treedata(contrs, tallies, by='feat_corr', root_collapsed=False, collapsed=True, root_name='resnet18', units=None, maxdepth=4, maxchildren=None):
     # Loop in reverse order
     contrs_rev = contrs[::-1]
     tallies_rev = tallies[::-1]
     tds = []
-    for unit in range(contrs_rev[0][by]['contr'][0].shape[0]):
-        td = make_treedata_rec(unit, contrs_rev, tallies_rev, root_name, by=by, collapsed=collapsed)
+    if units is None:
+        units = range(contrs_rev[0][by]['contr'][0].shape[0])
+    for unit in units:
+        td = _make_treedata_rec(unit, contrs_rev, tallies_rev, root_name, 1, maxdepth, by=by, collapsed=collapsed, maxchildren=maxchildren)
         tds.append(td)
     if root_collapsed:
         k = '_children'
@@ -21,11 +23,12 @@ def make_treedata(contrs, tallies, by='feat_corr', root_collapsed=False, collaps
     return {
         'name': root_name,
         'parent': 'null',
+        'card_html': f'<strong>{root_name}</strong>',
         k: tds
     }
 
 
-def make_treedata_rec(unit, contrs, tallies, parent_name, parent_weight=None, by='feat_corr', collapsed=True):
+def _make_treedata_rec(unit, contrs, tallies, parent_name, depth, maxdepth, parent_weight=None, by='feat_corr', collapsed=True, maxchildren=None):
     # Loop in reverse order
     this_contr, _ = contrs[0][by]['contr']
     this_weight = contrs[0][by]['weight']
@@ -36,15 +39,23 @@ def make_treedata_rec(unit, contrs, tallies, parent_name, parent_weight=None, by
     this = {
         'name': this_name,
         'parent': parent_name,
+        'card_html': f'<strong>{this_name}</strong>',
     }
-    if this_contr is not None:
+    if this_contr is not None and depth < maxdepth:
+        this_cs = np.where(this_contr[unit])[0]
+        this_ws = this_weight[unit, this_cs]
+        cws = sorted(zip(this_cs, this_ws), key=lambda cw: cw[1], reverse=True)
+        if maxchildren is not None:
+            cws = cws[:maxchildren]
         if collapsed:
             k = '_children'
         else:
             k = 'children'
         this[k] = [
-            make_treedata_rec(u, contrs[1:], tallies[1:], this_name, parent_weight=this_weight[unit, u])
-            for u in np.where(this_contr[unit])[0]
+            _make_treedata_rec(u, contrs[1:], tallies[1:], this_name, depth + 1, maxdepth,
+                               parent_weight=w, by=by, collapsed=collapsed,
+                               maxchildren=maxchildren)
+            for u, w in cws
         ]
     return this
 
@@ -99,6 +110,19 @@ TREESTYLE = r"""
       stroke: #ccc;
       stroke-width: 2px;
     }
+    /* Tooltip container */
+    div.tooltip {
+        position: absolute;
+        text-align: left;
+        width: 100px;
+        height: 80px;
+        padding: 8px;
+        font: 10px sans-serif;
+        background: #ddd;
+        border: solid 1px #aaa;
+        border-radius: 8px;
+        pointer-events: none;
+    }
 </style>
 """
 
@@ -106,9 +130,14 @@ TREESCRIPT = r"""
 <script>
 
 // ************** Generate the tree diagram     *****************
-var margin = {top: 20, right: 120, bottom: 20, left: 120},
-    width = 1960 - margin.right - margin.left,
-    height = 5000 - margin.top - margin.bottom;
+var margin = {top: 20, right: 120, bottom: 20, left: 120};
+
+var width = 1960 - margin.right - margin.left;
+
+// For the full 365
+// var height = 5000 - margin.top - margin.bottom;
+// For 36
+var height = 2000 - margin.top - margin.bottom;
 
 var i = 0,
     duration = 750;
@@ -158,7 +187,23 @@ var update = function(source) {
   var nodeEnter = node.enter().append("g")
       .attr("class", "node")
       .attr("transform", function(d) { return "translate(" + source.y0 + "," + source.x0 + ")"; })
-      .on("click", click);
+      .on("click", click)
+      .on("mouseover", function(d) {
+          var g = d3.select(this); // The node
+          // The class is used to remove the additional text later
+          var div = d3.select('body').append('div')
+             .attr('pointer-events', 'none')
+             .attr('class', 'tooltip')
+             .html(d.card_html)
+             .style("opacity", 1)
+             .style("left", (d3.event.pageX + 20 + 'px'))
+             .style("top", (d3.event.pageY + 'px'));
+      })
+      .on("mouseout", function() {
+          // Remove the info text on mouse out.
+          d3.select('body').select('div.tooltip').remove()
+      });
+    ;
 
   nodeEnter.append("circle")
       .attr("r", 1e-6)
