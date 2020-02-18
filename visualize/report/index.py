@@ -40,10 +40,6 @@ def generate_index(layernames, contrs, tallies, card_htmls):
             f'<a href="{expdir.fn_safe(ln)}.html"><h5>{ln}</h5></a>'
         )
 
-    html.append(
-        f'<a href="final.html"><h5>Final decisions</h5></a>'
-    )
-
     def get_card_html(layername, unit):
         try:
             return card_htmls[layername][unit + 1]

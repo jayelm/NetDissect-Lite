@@ -120,7 +120,7 @@ TREESTYLE = r"""
     div.tooltip {
         position: absolute;
         text-align: left;
-        width: 100px;
+        width: 500px;
         height: 80px;
         padding: 8px;
         font: 10px sans-serif;

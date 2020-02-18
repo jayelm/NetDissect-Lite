@@ -35,10 +35,12 @@ def generate_final_layer_summary(ds, weight, last_features, last_thresholds, las
     # Loop through classes
     # Last layer of contributors
     contributors = contributors[-1]
+    card_htmls = {}
     for cl in trange(weight.shape[0], desc='Final classes'):
+        card_html = []
         # TODO: Make this compatible with non-ade20k
         cl_name = ade20k.I2S[cl]
-        html.append(
+        card_html.append(
             f'<div class="card contr contr_final">'
                 f'<div class="card-header">'
                     f'<h5 class="mb-0">{cl_name}</h5>'
@@ -61,7 +63,7 @@ def generate_final_layer_summary(ds, weight, last_features, last_thresholds, las
 
             all_contrs.extend(contr)
 
-            html.append(
+            card_html.append(
                 f'<p class="contributors"><a href="{prev_layername}.html?u={contr_url_str}">Contributors ({contr_name}): {contr_label_str}</a></p>'
                 f'<p class="inhibitors"><a href="{prev_layername}.html?u={inhib_url_str}">Inhibitors ({contr_name}): {inhib_label_str}</a></p>'
             )
@@ -77,7 +79,7 @@ def generate_final_layer_summary(ds, weight, last_features, last_thresholds, las
                 html_imfn = ed.filename(f"html/image/{imfn_base}")
                 shutil.copy(imfn, html_imfn)
                 img_html = f'<img loading="lazy" class="mask-img" id="{cl_name}-{i}" data-masked="false" data-uname="{cl_name}" width="100" height="100" data-imfn="{imfn_base}" src="image/{imfn_base}">'
-                html.append(
+                card_html.append(
                     html_common.wrap_image(img_html)
                 )
                 # Save masks
@@ -87,8 +89,12 @@ def generate_final_layer_summary(ds, weight, last_features, last_thresholds, las
                     mask_fname = ed.filename(f"html/image/mask-{cunit + 1}-{imfn_alpha}")
                     mask.save(mask_fname)
 
-        html.append(f'</div></div>')
+        card_html.append(f'</div></div>')
+        card_html_str = ''.join(card_html)
+        card_htmls[cl + 1] = card_html_str
+        html.append(card_html_str)
 
     html.append(html_common.HTML_SUFFIX);
     with open(html_fname, 'w') as f:
         f.write('\n'.join(html))
+    return card_htmls

@@ -190,13 +190,13 @@ if settings.LEVEL == 'neuron':
         for name, weight in weights.items()
     }
     final_contrs_spread = spread_contrs(weights, contrs, [1, 2])
-    vfinal.generate_final_layer_summary(fo.data, final_weight_np, features[-1], thresholds[-1], preds[-1], logits[-1], prev_layername=layernames[-1], prev_tally=tallies[-1], contributors=final_contrs_spread,
+    final_card_htmls = vfinal.generate_final_layer_summary(fo.data, final_weight_np, features[-1], thresholds[-1], preds[-1], logits[-1], prev_layername=layernames[-1], prev_tally=tallies[-1], contributors=final_contrs_spread,
                                         skip=False)
 
 
 # ==== STEP 6: generate index html ====
 # Add final contrs/tallies/layernames/htmls:
-all_card_htmls['final'] = {}
+all_card_htmls['final'] = final_card_htmls
 if len(all_card_htmls) <= 1:
     # Don't overwrite the existing one
     print("Warning - no card htmls collected")
