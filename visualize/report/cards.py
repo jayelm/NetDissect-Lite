@@ -99,8 +99,8 @@ def make_card_html(ed, label_order, record, ds, mc, layer, gridname, top, featur
 
         cname = f"{contr_name}-{unit + 1}"
         cstr = (
-            f'<div class="contr-head card-header" id="heading-{cname}"><h5 class="mb-0"><button class="btn btn-link" data-toggle="collapse" data-target="#collapse-{cname}" aria-expanded="true" aria-controls="collapse-{cname}">{contr_name}</button></h5></div>'
-            f'<div id="collapse-{cname}" class="collapse {show}" aria-labelledby="heading-{cname}" data-parent="#contr-{unit + 1}"><div class="card-body">'
+            f'<div class="contr-head card-header" id="heading-{cname}"><h5 class="mb-0"><button class="btn btn-link" data-toggle="collapse" data-target="#collapse-{cname}">{contr_name}</button></h5></div>'
+            f'<div id="collapse-{cname}" class="collapse {show}" data-parent="#contr-{unit + 1}"><div class="card-body">'
                 f'<div class="card-body">'
                 f'<p class="contributors"><a href="{prev_layername}.html?u={contr_url_str}">Contributors: {contr_label_str}</a></p>'
                 f'<p class="inhibitors"><a href="{prev_layername}.html?u={inhib_url_str}">Inhibitors: {inhib_label_str}</a></p>'
