@@ -6,7 +6,6 @@ CLEAN = False                               # set to "True" if you want to clean
 MODEL = 'resnet18'                          # model arch: resnet18, alexnet, resnet50, densenet161
 DATASET = 'places365'                       # model trained on: places365, imagenet, or cub. If None,use untrained resnet (random baseline)
 PROBE_DATASET = 'broden'                    # which dataset to probe with (broden, cub, or gqa)
-MASK_SEARCH = True
 QUANTILE = 0.005                            # the threshold used for activation
 SEG_THRESHOLD = 0.04                        # the threshold used for visualization
 SCORE_THRESHOLD = 0.04                      # the threshold used for IoU score (in HTML file)
