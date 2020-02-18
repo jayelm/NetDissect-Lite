@@ -68,12 +68,18 @@ def to_labels(unit, contr, weight, prev_unit_names, uname=None, label_class="con
     :param prev_unit_names: map from units to their names, *one-indexed*
     :param uname: if provided, use this as the unit name
     """
+    def get_tally_label(u):
+        u = u + 1
+        if u not in prev_unit_names:
+            return 'unk'
+        return prev_unit_names[u]['label']
+
     contr = np.where(contr[unit])[0]
     weight = weight[unit, contr]
     if uname is None:
         uname = unit + 1
     contr_labels = [
-        f'<span class="label {label_class}" data-unit="{u + 1}" data-uname="{uname}">{u + 1} ({prev_unit_names.get(u + 1, "unk")}, {w:.3f})</span>'
+        f'<span class="label {label_class}" data-unit="{u + 1}" data-uname="{uname}">{u + 1} ({get_tally_label(u)}, {w:.3f})</span>'
         for u, w in
         sorted(zip(contr, weight), key=lambda x: x[1], reverse=True)
     ]
@@ -387,8 +393,7 @@ $(document).ready(function() {
         filterBy(us);
     }
     // Highlight RFs when hovering over image
-    $('.contr-label').hover(
-        // In
+    $(document).on('mouseenter', '.contr-label',
         function(e) {
             var uname = $(this).data('uname');
             var unit = $(this).data('unit');
@@ -399,8 +404,9 @@ $(document).ready(function() {
                 console.log('Loading ' + imalpha);
                 $(this).css('-webkit-mask-image', 'url(' + imalpha + ')');
             });
-        },
-        // Out
+        }
+    );
+    $(document).on('mouseleave', '.contr-label',
         function(e) {
             var uname = $(this).data('uname');
             var unit = $(this).data('unit');
@@ -415,7 +421,7 @@ $(document).ready(function() {
                     $(this).css('-webkit-mask-image', '');
                 }
             });
-        },
+        }
     );
 });
 </script>

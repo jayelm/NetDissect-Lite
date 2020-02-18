@@ -109,7 +109,18 @@ ranger = tqdm(zip(layernames, features, maxfeature, thresholds, preds, [None, *l
                   [None, *features], [None, *thresholds], contrs_spread),
               total=len(layernames))
 
-tallies = [None]
+tallies = []
+# Load cached card htmls if they exist - will be overwritten if not skipping
+# summarization step
+all_card_htmls_fname = os.path.join(settings.OUTPUT_FOLDER, 'card_htmls.pkl')
+if os.path.exists(all_card_htmls_fname):
+    print(f"Loading cached card htmls {all_card_htmls_fname}")
+    with open(all_card_htmls_fname, 'rb') as f:
+        all_card_htmls = pickle.load(f)
+else:
+    all_card_htmls = {}
+
+
 for layername, layer_features, layer_maxfeature, layer_thresholds, layer_preds, prev_layername, prev_features, prev_thresholds, layer_contrs in ranger:
     ranger.set_description(f'Layer {layername}')
     if settings.LEVEL == 'neuron':
@@ -124,21 +135,23 @@ for layername, layer_features, layer_maxfeature, layer_thresholds, layer_preds, 
         tally_result, mc = fo.tally(layer_features, layer_thresholds, savepath=tally_dfname)
 
         # ==== STEP 4: generating results ====
-        vneuron.generate_html_summary(fo.data, layername, layer_preds, mc,
-                                      tally_result=tally_result,
-                                      contributors=layer_contrs,
-                                      maxfeature=layer_maxfeature,
-                                      features=layer_features,
-                                      prev_layername=prev_layername,
-                                      prev_tally=tallies[-1],
-                                      prev_features=prev_features,
-                                      prev_thresholds=prev_thresholds,
-                                      thresholds=layer_thresholds,
-                                      force=True, skip=False)
+        card_htmls = vneuron.generate_html_summary(fo.data, layername, layer_preds, mc,
+                                                   tally_result=tally_result,
+                                                   contributors=layer_contrs,
+                                                   maxfeature=layer_maxfeature,
+                                                   features=layer_features,
+                                                   prev_layername=prev_layername,
+                                                   prev_tally=None if not tallies else tallies[-1],
+                                                   prev_features=prev_features,
+                                                   prev_thresholds=prev_thresholds,
+                                                   thresholds=layer_thresholds,
+                                                   force=True, skip=False)
 
         tallies.append({
-            record['unit']: record['label'] for record in tally_result
+            record['unit']: record for record in tally_result
         })
+        if card_htmls is not None:
+            all_card_htmls[layername] = card_htmls
     else:
         # Representation (neuralese) search
 
@@ -171,7 +184,6 @@ if settings.LEVEL == 'neuron':
                                            flattened=True),
         # TODO: For these, impl features for weight (quantile)
         #  'act_iou': contrib.get_act_iou(features, thresholds),
-        #  'act_iou_inhib': contrib.get_act_iou_inhib(features, thresholds)
     }
     contrs = {
         name: contrib.threshold_contributors(weight, alpha_global=0.01)
@@ -183,11 +195,20 @@ if settings.LEVEL == 'neuron':
 
 
 # ==== STEP 6: generate index html ====
-# Add last contrs and tallies:
+# Add final contrs/tallies/layernames/htmls:
+all_card_htmls['final'] = {}
+if len(all_card_htmls) <= 1:
+    # Don't overwrite the existing one
+    print("Warning - no card htmls collected")
+else:
+    with open(all_card_htmls_fname, 'wb') as f:
+        pickle.dump(all_card_htmls, f)
+
 contrs_spread.append(final_contrs_spread[-1])
-# One index the tallies
-tallies.append({k + 1: v for k, v in ade20k.I2S.items()})
-vindex.generate_index(layernames, contrs_spread, tallies)
+# One index the tallies/make them objects
+tallies.append({k + 1: {'label': v} for k, v in ade20k.I2S.items()})
+layernames.append('final')
+vindex.generate_index(layernames, contrs_spread, tallies, all_card_htmls)
 
 if settings.CLEAN:
     clean()

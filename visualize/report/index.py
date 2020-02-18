@@ -22,7 +22,11 @@ import shutil
 import json
 
 
-def generate_index(layernames, contrs, tallies):
+def generate_index(layernames, contrs, tallies, card_htmls):
+    assert len(layernames) == len(contrs)
+    assert len(layernames) == len(tallies)
+    assert len(layernames) == len(card_htmls)
+
     ed = expdir.ExperimentDirectory(settings.OUTPUT_FOLDER)
     ed.ensure_dir('html', 'image')
 
@@ -40,8 +44,15 @@ def generate_index(layernames, contrs, tallies):
         f'<a href="final.html"><h5>Final decisions</h5></a>'
     )
 
-    tree_data = tree.make_treedata(contrs, tallies, units=range(1, 365, 10),
-                                   maxchildren=3, maxdepth=4)
+    def get_card_html(layername, unit):
+        try:
+            return card_htmls[layername][unit + 1]
+        except KeyError:
+            return f'<p>{unit}</p>'
+
+    tree_data = tree.make_treedata(layernames, contrs, tallies, units=range(1, 365, 10),
+                                   maxchildren=3, maxdepth=4,
+                                   info_fn=get_card_html)
     tree_data_str = json.dumps(tree_data)
     tree_data_str = f"<script>var treeData = {tree_data_str};</script>"
     html.append(tree_data_str)
