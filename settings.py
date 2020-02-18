@@ -23,6 +23,9 @@ FORMULA_COMPLEXITY_PENALTY = 0.99  # How much to downweight formulas by their le
 BEAM_SEARCH_LIMIT = 50  # (artificially) limit beam to this many candidates
 BEAM_SIZE = 5  # Size of the beam when doing formula search
 MAX_FORMULA_LENGTH = 3  # Maximum compositional formula length
+TREE_MAXDEPTH = 4    # Index tree depth
+TREE_MAXCHILDREN = 3    # Index tree max children
+TREE_UNITS = range(1, 365, 10)  # How many units to build tree for
 FORCE_DISJUNCTION = False   # Only output disjunctive concepts. (Otherwise, disjunctive concepts are only identified if they have the highest IoU relative to other categories)
 
 INDEX_SUFFIX = INDEX_FILE.split('index')[1].split('.csv')
@@ -82,12 +85,14 @@ if MODEL not in {'resnet18', 'renset101', 'conv4'}:
     raise NotImplementedError(f"model = {MODEL}")
 
 if MODEL == 'resnet18':
-    # For contributions
-    FEATURE_NAMES = [['layer4', '1', 'conv1'], ['layer4', '1', 'conv2']]
-    #  FEATURE_NAMES = [
-        #  ['layer3', '0', 'conv1'], ['layer3', '0', 'conv2'], ['layer3', '1', 'conv1'], ['layer3', '1', 'conv2'],
-        #  ['layer4', '0', 'conv1'], ['layer4', '0', 'conv2'], ['layer4', '1', 'conv1'], ['layer4', '1', 'conv2'],
-    #  ]
+    FEATURE_NAMES = [
+        #  ['layer2', '0', 'conv1'], ['layer2', '0', 'conv2'],
+        #  ['layer2', '1', 'conv1'], ['layer2', '1', 'conv2'],
+        ['layer3', '0', 'conv1'], ['layer3', '0', 'conv2'],
+        ['layer3', '1', 'conv1'], ['layer3', '1', 'conv2'],
+        ['layer4', '0', 'conv1'], ['layer4', '0', 'conv2'],
+        ['layer4', '1', 'conv1'], ['layer4', '1', 'conv2'],
+    ]
     #  FEATURE_NAMES = ['layer4']
 elif MODEL == 'resnet101':
     FEATURE_NAMES = ['layer4']
