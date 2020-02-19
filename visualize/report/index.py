@@ -55,7 +55,7 @@ def generate_index(layernames, contrs, tallies, card_htmls):
     html.append(tree_data_str)
     html.append(tree.TREESTYLE)
     html.append(tree.TREESCRIPT)
-    html.append(html_common.HTML_SUFFIX);
+    html.append(html_common.HTML_SUFFIX)
 
     with open(html_fname, 'w') as f:
         f.write('\n'.join(html))

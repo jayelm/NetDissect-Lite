@@ -14,6 +14,7 @@ import pickle
 import os
 import pandas as pd
 from loader.data_loader import ade20k
+import numpy as np
 
 
 def noop(*args, **kwargs):
@@ -24,7 +25,6 @@ layernames = list(map(safe_layername, settings.FEATURE_NAMES))
 
 
 hook_modules = []
-
 
 def spread_contrs(weights, contrs, layernames):
     """
@@ -61,9 +61,8 @@ else:
 features, maxfeature, preds, logits = fo.feature_extraction(model=model)
 
 # ==== STEP 1.5: confusion matrix =====
-pr = preds[-1]
 pred_records = []
-for i, (p, t) in enumerate(pr):
+for i, (p, t) in enumerate(preds):
     pred_name = ade20k.I2S[p]
     target_name = f'{fo.data.scene(i)}-s'
     if target_name in ade20k.S2I:
@@ -86,26 +85,47 @@ if settings.CONTRIBUTIONS:
             contrs_spread = pickle.load(f)
     else:
         print("Computing contributions")
-        # TODO: Maybe multiprocess this if it ends up being really slow?
         weights = {
             'weight': contrib.get_weights(hook_modules),
             'feat_corr': contrib.get_feat_corr(features),
             'act_iou': contrib.get_act_iou(features, thresholds)
         }
+
+        # Final layer
+        final_weight_np = model.fc.weight.detach().cpu().numpy()
+        weights['weight'].append(final_weight_np)
+        weights['feat_corr'].append(
+            contrib.get_feat_corr([features[-1].mean(2).mean(2), logits], flattened=True)[1]
+        )
+
+        # Do I do by predictions or by top 1% activations here?
+        # For consistency w/ correlation measures, do 1% activations
+        final_thresholds = fo.quantile_threshold(logits[:, :, np.newaxis, np.newaxis],
+                                                 savepath='quantile_logits.npy')
+        weights['act_iou'].append(
+            contrib.get_act_iou([features[-1], logits[:, :, np.newaxis, np.newaxis]], [thresholds[-1], final_thresholds])[1]
+        )
         contrs = {
             name: contrib.threshold_contributors(weight, alpha_global=0.01)
             for name, weight in weights.items()
         }
-        contrs_spread = spread_contrs(weights, contrs, layernames)
+
+        contrs_spread = spread_contrs(weights, contrs, layernames + ['final'])
+
+        with open(contr_fname, 'wb') as f:
+            pickle.dump(contrs_spread, f)
+
+        contrs_spread = spread_contrs(weights, contrs, layernames + ['final'])
+
         with open(contr_fname, 'wb') as f:
             pickle.dump(contrs_spread, f)
 else:
     contrs_spread = [
-        {} for _ in settings.FEATURE_NAMES
+        {} for _ in layernames + ['final']
     ]
 
 # Zip it all together
-ranger = tqdm(zip(layernames, features, maxfeature, thresholds, preds, [None, *layernames],
+ranger = tqdm(zip(layernames, features, maxfeature, thresholds, [None, *layernames],
                   [None, *features], [None, *thresholds], contrs_spread),
               total=len(layernames))
 
@@ -121,7 +141,7 @@ else:
     all_card_htmls = {}
 
 
-for layername, layer_features, layer_maxfeature, layer_thresholds, layer_preds, prev_layername, prev_features, prev_thresholds, layer_contrs in ranger:
+for layername, layer_features, layer_maxfeature, layer_thresholds, prev_layername, prev_features, prev_thresholds, layer_contrs in ranger:
     ranger.set_description(f'Layer {layername}')
     if settings.LEVEL == 'neuron':
 
@@ -135,7 +155,7 @@ for layername, layer_features, layer_maxfeature, layer_thresholds, layer_preds, 
         tally_result, mc = fo.tally(layer_features, layer_thresholds, savepath=tally_dfname)
 
         # ==== STEP 4: generating results ====
-        card_htmls = vneuron.generate_html_summary(fo.data, layername, layer_preds, mc,
+        card_htmls = vneuron.generate_html_summary(fo.data, layername, preds, mc,
                                                    tally_result=tally_result,
                                                    contributors=layer_contrs,
                                                    maxfeature=layer_maxfeature,
@@ -170,27 +190,14 @@ for layername, layer_features, layer_maxfeature, layer_thresholds, layer_preds, 
             input_fname = f'input_{layername}.csv'
         else:
             input_fname = f'input_{layername}_{settings.IMAGES}.csv'
-        records, mc = fo.search_concepts(graph, layer_preds, fname=input_fname)
+        records, mc = fo.search_concepts(graph, preds, fname=input_fname)
         vrepr.generate_html_summary(fo.data, layername, records,
-                                    pdists_condensed, layer_preds, mc, thresh, force=True)
+                                    pdists_condensed, preds, mc, thresh, force=True)
 
 # ==== STEP 5: generate last layer ====
 if settings.LEVEL == 'neuron':
-    # Final layer - neurons that contribute to decisions
-    final_weight_np = model.fc.weight.detach().cpu().numpy()
-    weights = {
-        'weight': [None, final_weight_np],
-        'feat_corr': contrib.get_feat_corr([features[-1].mean(2).mean(2), logits[-1]],
-                                           flattened=True),
-        # TODO: For these, impl features for weight (quantile)
-        #  'act_iou': contrib.get_act_iou(features, thresholds),
-    }
-    contrs = {
-        name: contrib.threshold_contributors(weight, alpha_global=0.01)
-        for name, weight in weights.items()
-    }
-    final_contrs_spread = spread_contrs(weights, contrs, [1, 2])
-    final_card_htmls = vfinal.generate_final_layer_summary(fo.data, final_weight_np, features[-1], thresholds[-1], preds[-1], logits[-1], prev_layername=layernames[-1], prev_tally=tallies[-1], contributors=final_contrs_spread,
+    final_weight = contrs_spread[-1]['weight']['weight']
+    final_card_htmls = vfinal.generate_final_layer_summary(fo.data, final_weight, features[-1], thresholds[-1], preds, logits, prev_layername=layernames[-1], prev_tally=tallies[-1], contributors=contrs_spread[-1],
                                         skip=False)
 
 
@@ -204,8 +211,7 @@ else:
     with open(all_card_htmls_fname, 'wb') as f:
         pickle.dump(all_card_htmls, f)
 
-contrs_spread.append(final_contrs_spread[-1])
-# One index the tallies/make them objects
+# Add final tallies and layernames (one indexed)
 tallies.append({k + 1: {'label': v} for k, v in ade20k.I2S.items()})
 layernames.append('final')
 vindex.generate_index(layernames, contrs_spread, tallies, all_card_htmls)

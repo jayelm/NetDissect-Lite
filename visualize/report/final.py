@@ -33,8 +33,6 @@ def generate_final_layer_summary(ds, weight, last_features, last_thresholds, las
     html.append(f'<h3>{settings.OUTPUT_FOLDER} - Final Layer</h3>')
 
     # Loop through classes
-    # Last layer of contributors
-    contributors = contributors[-1]
     card_htmls = {}
     for cl in trange(weight.shape[0], desc='Final classes'):
         card_html = []

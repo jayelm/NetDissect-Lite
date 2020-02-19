@@ -16,11 +16,14 @@ def filter_oov(nlps):
     return [n for n in nlps if not (n.vector == 0.0).all()]
 
 
-def get_nlps(f, namer):
+def get_nlps(f, namer, vals=False):
     """
     Get spacy nlp objects for leaves in formula, with some cleanup
     """
-    leaves = f.get_vals()
+    if not vals:
+        leaves = f.get_vals()
+    else:
+        leaves = f
     leaves = [namer(l).lower() for l in leaves]
     leaves = [l.replace('-', ' ').replace('_', ' ') for l in leaves]
     # Remove scene suffixes
@@ -28,12 +31,28 @@ def get_nlps(f, namer):
     return [nlp(l) for l in leaves]
 
 
+def pairwise_sim_l(vals, namer=lambda x: x):
+    """
+    Compute average pairwise similarity between a list of atomic labels
+    """
+    if len(vals) <= 1:
+        return 1.0
+    nlps = get_nlps(vals, namer, vals=True)
+    nlps = filter_oov(nlps)
+    if not nlps:
+        return 0  # out of vocab
+    sims = []
+    for v1, v2 in itertools.combinations(nlps, 2):
+        sims.append(v1.similarity(v2))
+    return np.mean(np.array(sims))
+
+
 def pairwise_sim(f, namer):
     """
     Compute average pairwise similarity between formulas
     Compute pairwise similarity between formulas, averaged
     """
-    if len(f) == 1:
+    if len(f) <= 1:
         return 1.0
     nlps = get_nlps(f, namer)
     nlps = filter_oov(nlps)
