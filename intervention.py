@@ -65,7 +65,6 @@ if __name__ == '__main__':
     features_loader_s = DataLoader(features_dset, batch_size=32,
                                    shuffle=True, pin_memory=True, num_workers=0)
 
-    #  features_avg = features.mean(2).mean(2)
     logits_recon = []
     for (x, ) in tqdm(features_loader, desc='Sanity check'):
         if settings.GPU:
@@ -85,27 +84,43 @@ if __name__ == '__main__':
     contrs = contrs[BY]['contr'][0]
     cl2contr = {c: np.where(contrs[c])[0] for c in range(settings.NUM_CLASSES)}
 
-    c_acc = {c: AverageMeter() for c in cl2contr.keys()}
+    c_acc = {
+        'preint': {c: AverageMeter() for c in cl2contr.keys()},
+    }
+    ALPHAS = [1, 5, 10]
+    for alpha in ALPHAS:
+        c_acc[f'int-{alpha}'] = {c: AverageMeter() for c in cl2contr.keys()}
     for c, contr in tqdm(cl2contr.items(), total=len(cl2contr)):
         c_thresh = thresholds[contr].astype(np.float32)
         N_BATCHES = 5
-        for (x, ), _ in zip(features_loader_s, range(N_BATCHES)):
-            # Intervention
-            x = x.clone()
-            x[:, contr] = torch.from_numpy(c_thresh[:, np.newaxis, np.newaxis])
-            if settings.GPU:
-                x = x.cuda()
+        for (x_preint, ), _ in zip(features_loader_s, range(N_BATCHES)):
+            for mode in c_acc.keys():
+                if mode == 'preint':
+                    x = x_preint
+                else:
+                    # Get alpha
+                    alpha = int(mode.split('-')[1])
+                    x = x_preint.clone()
+                    x[:, contr] = torch.from_numpy(c_thresh[:, np.newaxis, np.newaxis] + alpha)
 
-            with torch.no_grad():
-                x_mean = x.mean(2).mean(2)
-                lr = model.fc(x_mean)
+                if settings.GPU:
+                    x = x.cuda()
 
-            pred = lr.argmax(1)
-            acc = (pred == c).float().mean().item()
-            c_acc[c].update(acc, x.shape[0])
+                with torch.no_grad():
+                    x_mean = x.mean(2).mean(2)
+                    lr = model.fc(x_mean)
 
-    c_acc = {c: m.avg for c, m in c_acc.items()}
-    c_records = [{'class': c + 1, 'label': ade20k.I2S[c], 'int_acc': acc}
-                 for c, acc in c_acc.items()]
-    pd.DataFrame(c_records).to_csv(os.path.join(settings.OUTPUT_FOLDER, 'int_acc.csv'),
+                pred = lr.argmax(1)
+                acc = (pred == c).float().mean().item()
+                c_acc[mode][c].update(acc, x.shape[0])
+
+    all_c_records = []
+    for mode in c_acc.keys():
+        c_acc_m = {c: m.avg for c, m in c_acc[mode].items()}
+        c_records = [
+            {'class': c + 1, 'label': ade20k.I2S[c], 'acc': acc, 'mode': mode}
+            for c, acc in c_acc_m.items()
+        ]
+        all_c_records.extend(c_records)
+    pd.DataFrame(all_c_records).to_csv(os.path.join(settings.OUTPUT_FOLDER, 'int_acc.csv'),
                                    index=False)
