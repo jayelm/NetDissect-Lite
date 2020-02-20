@@ -82,7 +82,7 @@ class ConvBlock(nn.Module):
         # self.BN.reset_parameters()
 
 
-def loadmodel(hook_fn, hook_modules=None, pretrained_override=None):
+def loadmodel(hook_fn, feature_names=settings.FEATURE_NAMES, hook_modules=None, pretrained_override=None):
     device = torch.device('cuda' if settings.GPU else 'cpu')
     if settings.MODEL == 'conv4':
         model_fn = Conv4
@@ -108,7 +108,7 @@ def loadmodel(hook_fn, hook_modules=None, pretrained_override=None):
         else:
             model = checkpoint
     if hook_fn is not None:
-        for name in settings.FEATURE_NAMES:
+        for name in feature_names:
             if isinstance(name, list):
                 # Iteratively retrive the module
                 hook_model = model

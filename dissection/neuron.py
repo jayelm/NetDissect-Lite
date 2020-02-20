@@ -57,21 +57,22 @@ class NeuronOperator:
             self.mean = None
 
 
-    def feature_extraction(self, model=None, memmap=True):
+    def feature_extraction(self, model=None, memmap=True, feature_names=settings.FEATURE_NAMES,
+                           features_only=False):
         loader = self.loader
         # extract the max value activaiton for each image
-        maxfeatures = [None] * len(settings.FEATURE_NAMES)
-        wholefeatures = [None] * len(settings.FEATURE_NAMES)
+        maxfeatures = [None] * len(feature_names)
+        wholefeatures = [None] * len(feature_names)
         # FIXME: Multiple files for preds/logits is completely redundant
         all_preds = None
         all_logits = None
-        features_size = [None] * len(settings.FEATURE_NAMES)
+        features_size = [None] * len(feature_names)
         features_size_file = os.path.join(settings.OUTPUT_FOLDER, "feature_size.npy")
 
         if memmap:
             skip = True
-            mmap_files =  [os.path.join(settings.OUTPUT_FOLDER, "%s.mmap" % safe_layername(feature_name))  for feature_name in  settings.FEATURE_NAMES]
-            mmap_max_files = [os.path.join(settings.OUTPUT_FOLDER, "%s_max.mmap" % safe_layername(feature_name)) for feature_name in settings.FEATURE_NAMES]
+            mmap_files =  [os.path.join(settings.OUTPUT_FOLDER, "%s.mmap" % safe_layername(feature_name))  for feature_name in  feature_names]
+            mmap_max_files = [os.path.join(settings.OUTPUT_FOLDER, "%s_max.mmap" % safe_layername(feature_name)) for feature_name in feature_names]
             mmap_pred_file = os.path.join(settings.OUTPUT_FOLDER, "pred.mmap")
             mmap_logit_file = os.path.join(settings.OUTPUT_FOLDER, "logit.mmap")
             if os.path.exists(features_size_file):
@@ -80,7 +81,7 @@ class NeuronOperator:
                 skip = False
             for i, (mmap_file, mmap_max_file) in enumerate(zip(mmap_files, mmap_max_files)):
                 if os.path.exists(mmap_file) and os.path.exists(mmap_max_file) and os.path.exists(mmap_pred_file) and os.path.exists(mmap_logit_file) and features_size[i] is not None:
-                    print('loading features %s' % safe_layername(settings.FEATURE_NAMES[i]))
+                    print('loading features %s' % safe_layername(feature_names[i]))
                     wholefeatures[i] = np.memmap(mmap_file, dtype=np.float32, mode='r', shape=tuple(features_size[i]))
                     maxfeatures[i] = np.memmap(mmap_max_file, dtype=np.float32, mode='r', shape=tuple(features_size[i][:2]))
                 else:
@@ -123,19 +124,20 @@ class NeuronOperator:
                 # Model was not trained to predict
                 targets = preds
 
-            if all_preds is None:
-                size_preds = (len(loader.indexes), 2)
-                if memmap:
-                    all_preds = np.memmap(mmap_pred_file, dtype=np.int64, mode='w+', shape=size_preds)
-                else:
-                    all_preds = np.zeros(size_preds, dtype=np.int64)
+            if not features_only:
+                if all_preds is None:
+                    size_preds = (len(loader.indexes), 2)
+                    if memmap:
+                        all_preds = np.memmap(mmap_pred_file, dtype=np.int64, mode='w+', shape=size_preds)
+                    else:
+                        all_preds = np.zeros(size_preds, dtype=np.int64)
 
-            if all_logits is None:
-                size_logits = (len(loader.indexes), settings.NUM_CLASSES)
-                if memmap:
-                    all_logits = np.memmap(mmap_logit_file, dtype=np.float32, mode='w+', shape=size_logits)
-                else:
-                    all_logits = np.zeros(size_logits, dtype=np.float32)
+                if all_logits is None:
+                    size_logits = (len(loader.indexes), settings.NUM_CLASSES)
+                    if memmap:
+                        all_logits = np.memmap(mmap_logit_file, dtype=np.float32, mode='w+', shape=size_logits)
+                    else:
+                        all_logits = np.zeros(size_logits, dtype=np.float32)
 
             if maxfeatures[0] is None:
                 # initialize the feature variable
@@ -169,8 +171,9 @@ class NeuronOperator:
                 elif len(feat_batch.shape) == 2:
                     maxfeatures[i][start_idx:end_idx] = feat_batch
 
-            all_preds[start_idx:end_idx] = np.stack((preds, targets), 1)
-            all_logits[start_idx:end_idx] = logits.cpu().numpy()
+            if not features_only:
+                all_preds[start_idx:end_idx] = np.stack((preds, targets), 1)
+                all_logits[start_idx:end_idx] = logits.cpu().numpy()
 
         if len(feat_batch.shape) == 2:
             wholefeatures = maxfeatures
