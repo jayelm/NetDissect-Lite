@@ -114,11 +114,6 @@ if settings.CONTRIBUTIONS:
 
         with open(contr_fname, 'wb') as f:
             pickle.dump(contrs_spread, f)
-
-        contrs_spread = spread_contrs(weights, contrs, layernames + ['final'])
-
-        with open(contr_fname, 'wb') as f:
-            pickle.dump(contrs_spread, f)
 else:
     contrs_spread = [
         {} for _ in layernames + ['final']
