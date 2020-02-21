@@ -34,12 +34,13 @@ def contr_c(layernames, contrs_spread):
                         'iou': None,
                         'label': ade20k.I2S[unit],
                         'contr_c': contr_c,
-                        'contr': ';'.join(contr_labs),
+                        'contr_labels': ';'.join(contr_labs),
+                        'contr_units': ';'.join(map(str, contrs)),
                         'n_contr': len(contr_labs),
                         'by': by
                     })
             else:
-                ln_full = os.path.join(settings.OUTPUT_FOLDER, f'tally_{ln}.csv')
+                ln_full = os.path.join(output_f, f'tally_{ln}.csv')
                 tally_df = pd.read_csv(ln_full)
                 tally = {d['unit']: d for d in tally_df.to_dict('records')}
 
@@ -48,6 +49,7 @@ def contr_c(layernames, contrs_spread):
                     u = row['unit'] - 1
                     if i == 0:
                         # No contributions - consistency all 1
+                        contrs = []
                         contr_labs = []
                         contr_c = 1.0
                     else:
@@ -61,7 +63,8 @@ def contr_c(layernames, contrs_spread):
                         'iou': row['score'],
                         'label': row['label'],
                         'contr_c': contr_c,
-                        'contr': ';'.join(contr_labs),
+                        'contr_labels': ';'.join(contr_labs),
+                        'contr_units': ';'.join(map(str, contrs)),
                         'n_contr': len(contr_labs),
                         'by': by
                     })
@@ -79,7 +82,8 @@ def contr_final(layernames, contrs_spread):
     n_classes = cs['weight']['weight'].shape[0]
     records = []
 
-    ln_full = os.path.join(settings.OUTPUT_FOLDER, f'tally_{layernames[-2]}.csv')
+
+    ln_full = os.path.join(output_f, f'tally_{layernames[-2]}.csv')
     tally_df = pd.read_csv(ln_full)
     prev_tally = {d['unit']: d for d in tally_df.to_dict('records')}
 
@@ -108,17 +112,26 @@ if __name__ == '__main__':
         description='__doc__',
         formatter_class=ArgumentDefaultsHelpFormatter)
 
+    parser.add_argument(
+        '--output_folder', default=None
+    )
+
     args = parser.parse_args()
+
+    if args.output_folder is not None:
+        output_f = args.output_folder
+    else:
+        output_f = settings.OUTPUT_FOLDER
 
     fo = NeuronOperator()
     data = fo.data
 
     layernames = list(map(safe_layername, settings.FEATURE_NAMES + ['final']))
-    with open(os.path.join(settings.OUTPUT_FOLDER, 'contrib.pkl'), 'rb') as f:
+    with open(os.path.join(output_f, 'contrib.pkl'), 'rb') as f:
         contrs_spread = pickle.load(f)
 
     contr_c_df = contr_c(layernames, contrs_spread)
-    contr_c_df.to_csv(os.path.join(settings.OUTPUT_FOLDER, 'contr_c.csv'), index=False)
+    contr_c_df.to_csv(os.path.join(output_f, 'contr_c.csv'), index=False)
 
     contr_final_df = contr_final(layernames, contrs_spread)
-    contr_final_df.to_csv(os.path.join(settings.OUTPUT_FOLDER, 'contr_final.csv'), index=False)
+    contr_final_df.to_csv(os.path.join(output_f, 'contr_final.csv'), index=False)
