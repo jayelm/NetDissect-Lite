@@ -12,8 +12,7 @@ import os
 import pandas as pd
 import numpy as np
 
-
-CONSISTENCY_REGEX = re.compile(r'consistency: (\d*\.?\d+)')
+from bs4 import BeautifulSoup
 
 
 if __name__ == '__main__':
@@ -40,14 +39,24 @@ if __name__ == '__main__':
         with open(html_fname, 'r') as f:
             html = f.read()
 
-        matches = re.findall(CONSISTENCY_REGEX, html)
-        consistency = list(map(float, matches))
-        consistency = np.array(consistency)
+        soup = BeautifulSoup(html, 'html.parser')
 
-        for c in consistency:
+        unit_soup = soup.find_all('div', 'unit')
+
+        for us in unit_soup:
+            unit = us.find('span', 'unitnum').text.strip().split('unit ')[1]
+            iou = us.find('span', 'iou').text.strip().split('IoU ')[1]
+            label = us.find('div', 'unitlabel').text.strip()
+            # consistency
+            label, consistency = label.split(' (consistency: ')
+            consistency = consistency[:-1]
+
             records.append({
                 'layer': ln,
-                'c': c
+                'label': label,
+                'consistency': float(consistency),
+                'unit': int(unit),
+                'iou': float(iou)
             })
 
     pd.DataFrame(records).to_csv(os.path.join(output_f, 'consistency.csv'), index=False)
