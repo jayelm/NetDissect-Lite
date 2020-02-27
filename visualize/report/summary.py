@@ -5,6 +5,8 @@ Trying to get summaries of neurons
 import spacy
 import itertools
 import numpy as np
+from nltk.corpus import wordnet as wn
+import functools
 
 
 print("Loading spacy...")
@@ -79,3 +81,36 @@ def summarize(f, namer):
 
     best_word = nlp.vocab.strings[key].lower()
     return best_word, sim
+
+
+def get_synset(t):
+    ss = wn.synsets(t, pos=wn.NOUN)
+    if ss:
+        return ss[0]
+    ss = wn.synsets(t.split('_')[0], pos=wn.NOUN)
+    if ss:
+        return ss[0]
+    else:
+        return None
+
+
+def wn_summarize(f, namer):
+    """
+    Get one-word summary of label which is closest in embedding space
+    (TODO: have option to have it NOT be any of the labels)
+    """
+    leaves = f.get_vals()
+    leaves = [namer(l).lower() for l in leaves]
+    leaves = [l.replace('-', ' ').replace('_', ' ') for l in leaves]
+    # Remove scene suffixes
+    leaves = [l[:-2] if l.endswith('-s') else l for l in leaves]
+
+    ss = []
+    for l in leaves:
+        s = get_synset(l)
+        if s is None:
+            return 'unk', 0.0
+        ss.append(s)
+    the_ss = functools.reduce(lambda a, b: a.lowest_common_hypernyms(b)[0], ss)
+
+    return str(the_ss), 0.0

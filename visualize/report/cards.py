@@ -74,7 +74,7 @@ def make_card_html(ed, label_order, record, ds, mc, layer, gridname, top, featur
 
     if settings.EMBEDDING_SUMMARY and len(lab_f) > 1:
         from visualize.report import summary
-        emb_summ, sim = summary.summarize(lab_f, lambda j: ds.name(None, j))
+        emb_summ, sim = summary.wn_summarize(lab_f, lambda j: ds.name(None, j))
         summ += f" ({emb_summ} {sim:.3f})"
 
     # Minor negation of label
