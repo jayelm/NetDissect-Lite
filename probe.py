@@ -258,7 +258,7 @@ else:
         pickle.dump(all_card_htmls, f)
 
 # Add final tallies and layernames (one indexed)
-tallies.append({k + 1: {"label": v} for k, v in ade20k.I2S.items()})
+tallies.append({k: {"label": v} for k, v in ade20k.I2S.items()})
 layernames.append("final")
 vindex.generate_index(layernames, contrs_spread, tallies, all_card_htmls)
 

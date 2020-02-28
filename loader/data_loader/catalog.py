@@ -41,7 +41,7 @@ class MaskCatalog:
         # Loop through prefetcher batches, collecting
         self.prefetcher = prefetcher
         # initialize the masks dictionary.
-        # For scalars - this is simply a binary np array - 1 if the scalar applies or not
+        # For scalars - this is simply a binary np array: 1 if the scalar applies or not
         # For masks - this is a regular python list of Option[np.arrays] -
         # where each np array is a binary array (or maybe a sparse matrix tbd)
         # We need to know whether features are scalars or not

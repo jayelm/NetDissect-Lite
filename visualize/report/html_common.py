@@ -72,7 +72,6 @@ def to_labels(
     """
 
     def get_tally_label(u):
-        u = u + 1
         if u not in prev_unit_names:
             return "unk"
         return prev_unit_names[u]["label"]
@@ -80,13 +79,13 @@ def to_labels(
     contr = np.where(contr[unit])[0]
     weight = weight[unit, contr]
     if uname is None:
-        uname = unit + 1
+        uname = unit
     contr_labels = [
-        f'<span class="label {label_class}" data-unit="{u + 1}" data-uname="{uname}">{u + 1} ({get_tally_label(u)}, {w:.3f})</span>'
+        f'<span class="label {label_class}" data-unit="{u}" data-uname="{uname}">{u} ({get_tally_label(u)}, {w:.3f})</span>'
         for u, w in sorted(zip(contr, weight), key=lambda x: x[1], reverse=True)
     ]
     contr_label_str = ", ".join(contr_labels)
-    contr_url_str = ",".join(map(str, [c + 1 for c in contr]))
+    contr_url_str = ",".join(map(str, [c for c in contr]))
     return contr_url_str, contr_label_str, contr
 
 

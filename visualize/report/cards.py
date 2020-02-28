@@ -74,17 +74,17 @@ def make_card_html(
     imscale=72,
 ):
     html = []
-    unit = int(record["unit"]) - 1  # zero-based unit indexing
+    unit = int(record["unit"])
     row1fns = [
-        f"image/{expdir.fn_safe(layer)}{gridname}-{unit + 1:04d}-{i}.jpg"
+        f"image/{expdir.fn_safe(layer)}{gridname}-{unit:04d}-{i}.jpg"
         for i in range(settings.TOPN)
     ]
     row2fns = [
-        f"image/{expdir.fn_safe(layer)}{gridname}-{unit + 1:04d}-maskimg-{i}.jpg"
+        f"image/{expdir.fn_safe(layer)}{gridname}-{unit:04d}-maskimg-{i}.jpg"
         for i in range(settings.TOPN)
     ]
     row3fns = [
-        f"image/{expdir.fn_safe(layer)}{gridname}-{unit + 1:04d}-maskimg-neg1-{i}.jpg"
+        f"image/{expdir.fn_safe(layer)}{gridname}-{unit:04d}-maskimg-neg1-{i}.jpg"
         for i in range(settings.TOPN)
     ]
 
@@ -115,10 +115,10 @@ def make_card_html(
 
         show = "show" if contr_i == 0 else ""
 
-        cname = f"{contr_name}-{unit + 1}"
+        cname = f"{contr_name}-{unit}"
         cstr = (
             f'<div class="contr-head card-header" id="heading-{cname}"><h5 class="mb-0"><button class="btn btn-link" data-toggle="collapse" data-target="#collapse-{cname}">{contr_name}</button></h5></div>'
-            f'<div id="collapse-{cname}" class="collapse {show}" data-parent="#contr-{unit + 1}"><div class="card-body">'
+            f'<div id="collapse-{cname}" class="collapse {show}" data-parent="#contr-{unit}"><div class="card-body">'
             f'<div class="card-body">'
             f'<p class="contributors"><a href="{prev_layername}.html?u={contr_url_str}">Contributors: {contr_label_str}</a></p>'
             f'<p class="inhibitors"><a href="{prev_layername}.html?u={inhib_url_str}">Inhibitors: {inhib_label_str}</a></p>'
@@ -129,7 +129,7 @@ def make_card_html(
         contrs.append(cstr)
     all_contrs = list(set(all_contrs))
     contr_str = "\n".join(contrs)
-    contr_str = f'<div id="contr-{unit + 1}">{contr_str}</div>'
+    contr_str = f'<div id="contr-{unit}">{contr_str}</div>'
 
     graytext = " lowscore" if float(record["score"]) < settings.SCORE_THRESHOLD else ""
     html.append(
@@ -138,7 +138,7 @@ def make_card_html(
             graytext,
             label_order,
             record["score-order"],
-            unit + 1,
+            unit,
             record["consistency-order"],
             record["emb_summary_sim-order"],
             record["wn_summary_sim-order"],
@@ -148,7 +148,7 @@ def make_card_html(
     html.append(
         '<div class="info">'
         + '<span class="layername">%s</span> ' % layer
-        + '<span class="unitnum">unit %d</span> ' % (unit + 1)
+        + '<span class="unitnum">unit %d</span> ' % (unit)
         + '<span class="category">(%s)</span> ' % record["category"]
         + '<span class="iou">IoU %.2f</span>' % float(record["score"])
         + '<span class="consistency">Consistency %.2f</span> '
@@ -175,14 +175,14 @@ def make_card_html(
         target_name = f"{ds.scene(index)}-s"
         wrclass = "correct " if pred_name == target_name else "incorrect"
 
-        img_html = f'<img loading="lazy" class="mask-img" data-masked="true" src="{html_imfn}" height="{imscale}" style="-webkit-mask-image: url(image/this-mask-{unit + 1}-{html_imfn_alpha})" id="{unit + 1}-{i}" data-uname="{unit + 1}" data-imfn="{html_imfn_alpha}">'
+        img_html = f'<img loading="lazy" class="mask-img" data-masked="true" src="{html_imfn}" height="{imscale}" style="-webkit-mask-image: url(image/this-mask-{unit}-{html_imfn_alpha})" id="{unit}-{i}" data-uname="{unit}" data-imfn="{html_imfn_alpha}">'
         img_infos = [f"pred = {pred_name}", f"target = {target_name}"]
         html.append(
             html_common.wrap_image(img_html, wrapper_classes=[wrclass], infos=img_infos)
         )
 
         # Load default mask for this unit
-        unit_maskfn = f"this-mask-{unit + 1}-{html_imfn_alpha}"
+        unit_maskfn = f"this-mask-{unit}-{html_imfn_alpha}"
         if force or not ed.has(f"html/image/{unit_maskfn}"):
             # CURRENT features
             mask = html_common.create_mask(index, unit, features, thresholds)
@@ -190,7 +190,7 @@ def make_card_html(
 
         for cunit in all_contrs:
             # PREVIOUS features
-            maskfn = f"mask-{cunit + 1}-{html_imfn_alpha}"
+            maskfn = f"mask-{cunit}-{html_imfn_alpha}"
             if force or not ed.has(f"html/image/{maskfn}"):
                 mask = html_common.create_mask(
                     index, cunit, prev_features, prev_thresholds

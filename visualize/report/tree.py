@@ -68,7 +68,7 @@ def _make_treedata_rec(
     this_contr, _ = contrs[0][by]["contr"]
     this_weight = contrs[0][by]["weight"]
     this_tally = tallies[0]
-    this_name = f"{unit + 1}-{this_tally[unit + 1]['label']}"
+    this_name = f"{unit}-{this_tally[unit]['label']}"
     if parent_weight is not None:
         this_name = f"{this_name} ({parent_weight:.2f})"
     this = {

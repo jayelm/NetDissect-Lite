@@ -453,7 +453,7 @@ class NeuronOperator:
                     consistency = summary.pairwise_sim(best_lab, namer)
 
                 r = {
-                    "unit": (u + 1),
+                    "unit": u,
                     "category": best_cat,
                     "label": best_name,
                     "score": best_iou,

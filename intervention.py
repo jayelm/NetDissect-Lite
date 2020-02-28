@@ -125,7 +125,7 @@ if __name__ == "__main__":
     for mode in c_acc.keys():
         c_acc_m = {c: m.avg for c, m in c_acc[mode].items()}
         c_records = [
-            {"class": c + 1, "label": ade20k.I2S[c], "acc": acc, "mode": mode}
+            {"class": c, "label": ade20k.I2S[c], "acc": acc, "mode": mode}
             for c, acc in c_acc_m.items()
         ]
         all_c_records.extend(c_records)

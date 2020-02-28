@@ -26,12 +26,12 @@ def contr_c(layernames, contrs_spread):
                 n_classes = cs["weight"]["weight"].shape[0]
                 for unit in range(n_classes):
                     contrs = np.where(cs[by]["contr"][0][unit])[0]
-                    contr_labs = [prev_tally[c + 1]["label"] for c in contrs]
+                    contr_labs = [prev_tally[c]["label"] for c in contrs]
                     contr_c = summary.pairwise_sim_l(contr_labs)
                     records.append(
                         {
                             "layer": ln,
-                            "unit": unit + 1,
+                            "unit": unit,
                             "iou": None,
                             "label": ade20k.I2S[unit],
                             "contr_c": contr_c,
@@ -48,7 +48,7 @@ def contr_c(layernames, contrs_spread):
 
                 for row_i, row in tally_df.iterrows():
                     # 0 index
-                    u = row["unit"] - 1
+                    u = row["unit"]
                     if i == 0:
                         # No contributions - consistency all 1
                         contrs = []
@@ -56,7 +56,7 @@ def contr_c(layernames, contrs_spread):
                         contr_c = 1.0
                     else:
                         contrs = np.where(cs[by]["contr"][0][u])[0]
-                        contr_labs = [prev_tally[c + 1]["label"] for c in contrs]
+                        contr_labs = [prev_tally[c]["label"] for c in contrs]
                         contr_c = summary.pairwise_sim_l(contr_labs)
 
                     records.append(
@@ -95,12 +95,12 @@ def contr_final(layernames, contrs_spread):
             weights = cs[by]["weight"][cl]
             contrs = cs[by]["contr"][0][cl]
             for ui, (w, c) in enumerate(zip(weights, contrs)):
-                clab = prev_tally[ui + 1]["label"]
+                clab = prev_tally[ui]["label"]
                 records.append(
                     {
-                        "class": cl + 1,
+                        "class": cl,
                         "label": ade20k.I2S[cl],
-                        "unit": ui + 1,
+                        "unit": ui,
                         "contr_label": clab,
                         "weight": w,
                         "is_contr": c,

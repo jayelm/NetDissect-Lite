@@ -106,13 +106,13 @@ def generate_final_layer_summary(
                         settings.IMG_SIZE,
                     )
                     mask_fname = ed.filename(
-                        f"html/image/mask-{cunit + 1}-{imfn_alpha}"
+                        f"html/image/mask-{cunit}-{imfn_alpha}"
                     )
                     mask.save(mask_fname)
 
         card_html.append(f"</div></div>")
         card_html_str = "".join(card_html)
-        card_htmls[cl + 1] = card_html_str
+        card_htmls[cl] = card_html_str
         html.append(card_html_str)
 
     html.append(html_common.HTML_SUFFIX)

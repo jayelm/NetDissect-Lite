@@ -43,7 +43,7 @@ if __name__ == "__main__":
 
     def get_cls(unit):
         cl = contr2cl[unit]
-        cl_label = [ade20k.I2S[c - 1] for c in cl]
+        cl_label = [ade20k.I2S[c] for c in cl]
         return ",".join(cl_label)
 
     layernames = [safe_layername(ln) for ln in settings.FEATURE_NAMES]

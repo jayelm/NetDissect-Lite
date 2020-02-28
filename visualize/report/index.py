@@ -40,7 +40,7 @@ def generate_index(layernames, contrs, tallies, card_htmls):
 
     def get_card_html(layername, unit):
         try:
-            return card_htmls[layername][unit + 1]
+            return card_htmls[layername][unit]
         except KeyError:
             return f"<p>{unit}</p>"
 
