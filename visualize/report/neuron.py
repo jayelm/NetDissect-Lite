@@ -24,6 +24,12 @@ import pycocotools.mask as cmask
 # unit,category,label,score
 
 
+def order_by(records, key):
+    for i, record in enumerate(
+            sorted(records, key=lambda record: -float(record[key]))):
+        record[f'{key}-order'] = i
+
+
 def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, thresholds=None,
         imsize=None, imscale=72, tally_result=None,
         contributors=None, prev_layername=None, prev_tally=None, prev_features=None, prev_thresholds=None,
@@ -95,31 +101,16 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
     if gridwidth is None:
         gridname = ''
         gridwidth = settings.TOPN
-        gridheight = 1
     else:
         gridname = '-%d' % gridwidth
-        gridheight = (settings.TOPN + gridwidth - 1) // gridwidth
 
     html.append('<div class="unitgrid">')
     if limit is not None:
         rendered_order = rendered_order[:limit]
 
-    # Assign ordering based on score
-    for i, record in enumerate(
-            sorted(rendered_order, key=lambda record: -float(record['score']))):
-        record['score-order'] = i
-
-    # Assign ordering based on consistency
-    for record in rendered_order:
-        lab_f = F.parse(record['label'], reverse_namer=ds.rev_name)
-        if settings.SEMANTIC_CONSISTENCY:
-            from visualize.report import summary
-            record['consistency'] = summary.pairwise_sim(lab_f, lambda j: ds.name(None, j))
-        else:
-            record['consistency'] = 0
-    for i, record in enumerate(
-            sorted(rendered_order, key=lambda record: -float(record['consistency']))):
-        record['consistency-order'] = i
+    # Assign ordering based on score, consistency, and/or
+    order_by(rendered_order, 'score')
+    order_by(rendered_order, 'consistency')
 
     # TODO: Make embedding summary searchable too.
 

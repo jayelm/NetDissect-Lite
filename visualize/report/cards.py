@@ -67,15 +67,6 @@ def make_card_html(ed, label_order, record, ds, mc, layer, gridname, top, featur
 
     # Compute 2nd and 3rd image metadata
     lab_f = F.parse(record['label'], reverse_namer=ds.rev_name)
-    summ = ''
-    # Add summaries; load spacy only if needed
-    if settings.SEMANTIC_CONSISTENCY:
-        summ += f" (consistency: {record['consistency']:.3f})"
-
-    if settings.EMBEDDING_SUMMARY and len(lab_f) > 1:
-        from visualize.report import summary
-        emb_summ, sim = summary.wn_summarize(lab_f, lambda j: ds.name(None, j))
-        summ += f" ({emb_summ} {sim:.3f})"
 
     # Minor negation of label
     neglab_f = F.minor_negate(lab_f, hard=True)
@@ -116,12 +107,15 @@ def make_card_html(ed, label_order, record, ds, mc, layer, gridname, top, featur
     graytext = ' lowscore' if float(record['score']) < settings.SCORE_THRESHOLD else ''
     html.append('<div class="unit%s" data-order="%d %d %d %d">' %
             (graytext, label_order, record['score-order'], unit + 1, record['consistency-order']))
-    html.append(f"<div class='unitlabel'>{fix(record['label'])}{summ}</div>")
+    html.append(f"<div class='unitlabel'>{fix(record['label'])}</div>")
     html.append('<div class="info">' +
         '<span class="layername">%s</span> ' % layer +
         '<span class="unitnum">unit %d</span> ' % (unit + 1) +
         '<span class="category">(%s)</span> ' % record['category'] +
         '<span class="iou">IoU %.2f</span>' % float(record['score']) +
+        '<span class="consistency">Consistency %.2f</span> ' % float(record['consistency']) +
+        '<span class="emb_summary">emb summary %s</span> ' % record['emb_summary'] +
+        '<span class="wn_summary">wn summary %s</span> ' % record['wn_summary'] +
         contr_str +
         '</div>')
 

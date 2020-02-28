@@ -18,6 +18,7 @@ IMAGES = 256 # Representation level - look at this many imagse
 REPR_ALPHA = 0.05         # Consider this closest as "close" representations
 UNIT_RANGE = None  # Give range if you want to use only some units
 EMBEDDING_SUMMARY = False    # Make an embedding-based summary of the formulas during visualization
+WN_SUMMARY = False    # Make an embedding-based summary of the formulas during visualization
 SEMANTIC_CONSISTENCY = True    # Evaluate semantic consistency of formulas
 FORMULA_COMPLEXITY_PENALTY = 0.99  # How much to downweight formulas by their length
 BEAM_SEARCH_LIMIT = 50  # (artificially) limit beam to this many candidates

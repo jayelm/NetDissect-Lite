@@ -29,7 +29,8 @@ def get_nlps(f, namer, vals=False):
     leaves = [namer(l).lower() for l in leaves]
     leaves = [l.replace('-', ' ').replace('_', ' ') for l in leaves]
     # Remove scene suffixes
-    leaves = [l[:-2] if l.endswith('-s') else l for l in leaves]
+    leaves = [l[:-2] if l.endswith(' s') else l for l in leaves]
+    leaves = [l[:-2] if l.endswith(' c') else l for l in leaves]
     return [nlp(l) for l in leaves]
 
 
@@ -66,7 +67,7 @@ def pairwise_sim(f, namer):
     return np.mean(np.array(sims))
 
 
-def summarize(f, namer):
+def emb_summarize(f, namer, search_n=25):
     """
     Get one-word summary of label which is closest in embedding space
     (TODO: have option to have it NOT be any of the labels)
@@ -74,13 +75,27 @@ def summarize(f, namer):
     nlps = get_nlps(f, namer)
     nlps = filter_oov(nlps)
     vecs = [n.vector for n in nlps]
-    vec = np.array(vecs).mean(0)[np.newaxis]
-    keys, _, sims, = nlp.vocab.vectors.most_similar(vec, n=1, batch_size=10000)
-    key = keys.item()
-    sim = sims.item()
 
-    best_word = nlp.vocab.strings[key].lower()
-    return best_word, sim
+    toks_flat = set()
+    for n in nlps:
+        toks_flat.update(list(n))
+    toks_flat = [t.text for t in toks_flat]
+
+    vec = np.array(vecs).mean(0)[np.newaxis]
+    keys, _, sims, = nlp.vocab.vectors.most_similar(
+        vec, n=search_n, batch_size=10000
+    )
+    keys = keys[0]
+    sims = sims[0]
+
+    for k, s in zip(keys, sims):
+        w = nlp.vocab.strings[k].lower()
+        if w not in toks_flat:
+            return w, s
+
+    # Just return the original word, but mark that it's not the same member
+    w = nlp.vocab.strings[keys[0]].lower()
+    return f'{w}-same', sims[0]
 
 
 def get_synset(t):

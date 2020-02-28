@@ -300,21 +300,52 @@ class NeuronOperator:
         else:
             mp_args = ((u, ) for u in settings.UNIT_RANGE)
             nu = len(settings.UNIT_RANGE)
+
+        if settings.EMBEDDING_SUMMARY or settings.WN_SUMMARY or settings.SEMANTIC_CONSISTENCY:
+            # Only import summary (and load GloVe) if doing summaries
+            from visualize.report import summary
+
+        namer = lambda name: data.name(None, name)
+        cat_namer = lambda name: categories[pcats[name]]
         with mp.Pool(settings.PARALLEL) as p, tqdm(total=nu, desc='IoU - primitives') as pbar:
             for (u, best, best_noncomp) in p.imap_unordered(NeuronOperator.compute_best_iou, mp_args):
                 best_lab, best_iou = best
                 best_noncomp_lab, best_noncomp_iou = best_noncomp
 
-                best_name = best_lab.to_str(lambda name: data.name(None, name))
-                best_cat = best_lab.to_str(lambda name: categories[pcats[name]])
-                best_noncomp_name = best_noncomp_lab.to_str(lambda name: data.name(None, name))
-                best_noncomp_cat = best_noncomp_lab.to_str(lambda name: categories[pcats[name]])
+                best_name = best_lab.to_str(namer)
+                best_cat = best_lab.to_str(cat_namer)
+                best_noncomp_name = best_noncomp_lab.to_str(namer)
+                best_noncomp_cat = best_noncomp_lab.to_str(cat_namer)
+
+                # Summarize/compute consistency
+                emb_summary = ''
+                emb_summary_sim = 0.0
+                if settings.EMBEDDING_SUMMARY and len(best_lab) > 1:
+                    emb_summary, emb_summary_sim = summary.emb_summarize(
+                        best_lab,
+                        namer
+                    )
+
+                wn_summary = ''
+                if settings.WN_SUMMARY and len(best_lab) > 1:
+                    wn_summary = summary.wn_summarize(
+                        best_lab,
+                        namer
+                    )
+
+                consistency = 0.0
+                if settings.SEMANTIC_CONSISTENCY:
+                    consistency = summary.pairwise_sim(best_lab, namer)
 
                 r = {
                     'unit': (u + 1),
                     'category': best_cat,
                     'label': best_name,
                     'score': best_iou,
+                    'emb_summary': emb_summary,
+                    'emb_summary_sim': emb_summary_sim,
+                    'wn_summary': wn_summary,
+                    'consistency': consistency,
                     'category_noncomp': best_noncomp_cat,
                     'label_noncomp': best_noncomp_name,
                     'score_noncomp': best_noncomp_iou,
