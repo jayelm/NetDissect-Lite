@@ -14,7 +14,7 @@ TOPN = 5  # to show top N image with highest activation for each unit
 PARALLEL = (
     8  # how many process is used for tallying (Experiments show that 1 is the fastest)
 )
-CATAGORIES = [
+CATEGORIES = [
     "object",
     "part",
     "scene",

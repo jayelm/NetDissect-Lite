@@ -279,7 +279,7 @@ class SegmentationData(AbstractSegmentation):
     def primary_categories_per_index(self, categories=None):
         """
         Returns an array of primary category numbers for each label, where
-        catagories are indexed according to the list of categories passed,
+        categories are indexed according to the list of categories passed,
         or self.category_names() if none.
         """
         if categories is None:

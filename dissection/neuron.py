@@ -41,7 +41,7 @@ class NeuronOperator:
         os.makedirs(os.path.join(settings.OUTPUT_FOLDER, "image"), exist_ok=True)
         if settings.PROBE_DATASET == "broden":
             self.data = SegmentationData(
-                settings.DATA_DIRECTORY, categories=settings.CATAGORIES
+                settings.DATA_DIRECTORY, categories=settings.CATEGORIES
             )
             self.loader = SegmentationPrefetcher(
                 self.data,
