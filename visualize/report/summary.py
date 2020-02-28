@@ -128,4 +128,4 @@ def wn_summarize(f, namer):
         ss.append(s)
     the_ss = functools.reduce(lambda a, b: a.lowest_common_hypernyms(b)[0], ss)
 
-    return str(the_ss), 0.0
+    return str(the_ss)
