@@ -6,45 +6,78 @@ import json
 import numpy as np
 
 
-def make_treedata(layernames, contrs, tallies, by='feat_corr', root_collapsed=False, collapsed=True, root_name='resnet18', units=None, maxdepth=4, maxchildren=None, info_fn=None):
+def make_treedata(
+    layernames,
+    contrs,
+    tallies,
+    by="feat_corr",
+    root_collapsed=False,
+    collapsed=True,
+    root_name="resnet18",
+    units=None,
+    maxdepth=4,
+    maxchildren=None,
+    info_fn=None,
+):
     # Loop in reverse order
     contrs_rev = contrs[::-1]
     tallies_rev = tallies[::-1]
     layernames_rev = layernames[::-1]
     tds = []
     if units is None:
-        units = range(contrs_rev[0][by]['contr'][0].shape[0])
+        units = range(contrs_rev[0][by]["contr"][0].shape[0])
     for unit in units:
-        td = _make_treedata_rec(unit, layernames_rev, contrs_rev, tallies_rev, root_name, 1, maxdepth, by=by, collapsed=collapsed, maxchildren=maxchildren, info_fn=info_fn)
+        td = _make_treedata_rec(
+            unit,
+            layernames_rev,
+            contrs_rev,
+            tallies_rev,
+            root_name,
+            1,
+            maxdepth,
+            by=by,
+            collapsed=collapsed,
+            maxchildren=maxchildren,
+            info_fn=info_fn,
+        )
         tds.append(td)
     if root_collapsed:
-        k = '_children'
+        k = "_children"
     else:
-        k = 'children'
-    root = {
-        'name': root_name,
-        'parent': 'null',
-        k: tds
-    }
+        k = "children"
+    root = {"name": root_name, "parent": "null", k: tds}
     return root
 
 
-def _make_treedata_rec(unit, layernames, contrs, tallies, parent_name, depth, maxdepth, parent_weight=None, by='feat_corr', collapsed=True, maxchildren=None, info_fn=None):
+def _make_treedata_rec(
+    unit,
+    layernames,
+    contrs,
+    tallies,
+    parent_name,
+    depth,
+    maxdepth,
+    parent_weight=None,
+    by="feat_corr",
+    collapsed=True,
+    maxchildren=None,
+    info_fn=None,
+):
     # Loop in reverse order
     this_layername = layernames[0]
-    this_contr, _ = contrs[0][by]['contr']
-    this_weight = contrs[0][by]['weight']
+    this_contr, _ = contrs[0][by]["contr"]
+    this_weight = contrs[0][by]["weight"]
     this_tally = tallies[0]
     this_name = f"{unit + 1}-{this_tally[unit + 1]['label']}"
     if parent_weight is not None:
-        this_name = f'{this_name} ({parent_weight:.2f})'
+        this_name = f"{this_name} ({parent_weight:.2f})"
     this = {
-        'name': this_name,
-        'parent': parent_name,
+        "name": this_name,
+        "parent": parent_name,
     }
 
     if info_fn is not None:
-        this['info'] = info_fn(this_layername, unit)
+        this["info"] = info_fn(this_layername, unit)
 
     if this_contr is not None and depth < maxdepth:
         this_cs = np.where(this_contr[unit])[0]
@@ -53,14 +86,24 @@ def _make_treedata_rec(unit, layernames, contrs, tallies, parent_name, depth, ma
         if maxchildren is not None:
             cws = cws[:maxchildren]
         if collapsed:
-            k = '_children'
+            k = "_children"
         else:
-            k = 'children'
+            k = "children"
         this[k] = [
-            _make_treedata_rec(u, layernames[1:],
-                               contrs[1:], tallies[1:], this_name, depth + 1, maxdepth,
-                               parent_weight=w, by=by, collapsed=collapsed,
-                               maxchildren=maxchildren, info_fn=info_fn)
+            _make_treedata_rec(
+                u,
+                layernames[1:],
+                contrs[1:],
+                tallies[1:],
+                this_name,
+                depth + 1,
+                maxdepth,
+                parent_weight=w,
+                by=by,
+                collapsed=collapsed,
+                maxchildren=maxchildren,
+                info_fn=info_fn,
+            )
             for u, w in cws
         ]
     return this

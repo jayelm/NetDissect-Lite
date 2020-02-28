@@ -10,7 +10,7 @@ import functools
 
 
 print("Loading spacy...")
-nlp = spacy.load('en_vectors_web_lg')
+nlp = spacy.load("en_vectors_web_lg")
 print("done")
 
 
@@ -20,13 +20,13 @@ def filter_oov(nlps):
 
 def clean(leaves, to_underscore=False):
     if to_underscore:
-        leaves = [l.replace('-', '_').replace(' ', '_') for l in leaves]
-        leaves = [l[:-2] if l.endswith('_s') else l for l in leaves]
-        leaves = [l[:-2] if l.endswith('_c') else l for l in leaves]
+        leaves = [l.replace("-", "_").replace(" ", "_") for l in leaves]
+        leaves = [l[:-2] if l.endswith("_s") else l for l in leaves]
+        leaves = [l[:-2] if l.endswith("_c") else l for l in leaves]
     else:
-        leaves = [l.replace('-', ' ').replace('_', ' ') for l in leaves]
-        leaves = [l[:-2] if l.endswith(' s') else l for l in leaves]
-        leaves = [l[:-2] if l.endswith(' c') else l for l in leaves]
+        leaves = [l.replace("-", " ").replace("_", " ") for l in leaves]
+        leaves = [l[:-2] if l.endswith(" s") else l for l in leaves]
+        leaves = [l[:-2] if l.endswith(" c") else l for l in leaves]
     # Remove scene suffixes
     return leaves
 
@@ -92,9 +92,7 @@ def emb_summarize(f, namer, search_n=25):
     toks_flat = [t.text for t in toks_flat]
 
     vec = np.array(vecs).mean(0)[np.newaxis]
-    keys, _, sims, = nlp.vocab.vectors.most_similar(
-        vec, n=search_n, batch_size=10000
-    )
+    keys, _, sims, = nlp.vocab.vectors.most_similar(vec, n=search_n, batch_size=10000)
     keys = keys[0]
     sims = sims[0]
 
@@ -105,14 +103,14 @@ def emb_summarize(f, namer, search_n=25):
 
     # Just return the original word, but mark that it's not the same member
     w = nlp.vocab.strings[keys[0]].lower()
-    return f'{w}-same', sims[0]
+    return f"{w}-same", sims[0]
 
 
 def get_synset(t):
     ss = wn.synsets(t, pos=wn.NOUN)
     if ss:
         return ss[0]
-    ss = wn.synsets(t.split('_')[0], pos=wn.NOUN)
+    ss = wn.synsets(t.split("_")[0], pos=wn.NOUN)
     if ss:
         return ss[0]
     else:
@@ -120,15 +118,15 @@ def get_synset(t):
 
 
 PATH_TYPES = [
-    'hypernyms',
-    'instance_hypernyms',
-    'hyponyms',
-    'instance_hyponyms',
-    'member_meronyms',
-    'part_meronyms',
-    'substance_meronyms',
-    'similar_tos',
-    'also_sees',
+    "hypernyms",
+    "instance_hypernyms",
+    "hyponyms",
+    "instance_hyponyms",
+    "member_meronyms",
+    "part_meronyms",
+    "substance_meronyms",
+    "similar_tos",
+    "also_sees",
 ]
 
 
@@ -151,7 +149,7 @@ def find_path(src, dest, path_types=PATH_TYPES):
         # If this adjacent node is the destination node,
         # then return true
         if n == dest:
-             return path
+            return path
 
         #  Else, continue to do BFS
         relations = set()
@@ -159,7 +157,7 @@ def find_path(src, dest, path_types=PATH_TYPES):
             relations.update(getattr(n, path_type)())
         for i in relations:
             if i not in visited:
-                new_path = path + (n, )
+                new_path = path + (n,)
                 queue.append((i, new_path))
                 visited.add(i)
 
@@ -189,7 +187,7 @@ def wn_summarize(f, namer):
 
     synsets = [get_synset(s) for s in leaves]
     if all(s is None for s in synsets):
-        return 'unk', 0
+        return "unk", 0
     synsets = [s for s in synsets if s is not None]
 
     if len(synsets) == 1:
@@ -202,7 +200,7 @@ def wn_summarize(f, namer):
         midp, dist = wn_midpoint(a, b)
         total_dist += dist
         if midp is None:
-            return 'unk', 0.0
+            return "unk", 0.0
         synsets.append(midp)
 
     return str(synsets[0]), total_dist

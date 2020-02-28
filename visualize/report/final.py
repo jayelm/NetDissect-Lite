@@ -1,6 +1,6 @@
-'''
+"""
 viewprobe creates visualizations for a certain eval.
-'''
+"""
 
 import re
 import numpy
@@ -20,44 +20,59 @@ import os
 import shutil
 
 
-def generate_final_layer_summary(ds, weight, last_features, last_thresholds, last_preds, last_logits, prev_layername=None, prev_tally=None, contributors=None, skip=False):
+def generate_final_layer_summary(
+    ds,
+    weight,
+    last_features,
+    last_thresholds,
+    last_preds,
+    last_logits,
+    prev_layername=None,
+    prev_tally=None,
+    contributors=None,
+    skip=False,
+):
     if skip:
         return
     ed = expdir.ExperimentDirectory(settings.OUTPUT_FOLDER)
-    ed.ensure_dir('html', 'image')
+    ed.ensure_dir("html", "image")
 
     html_fname = ed.filename(f"html/{expdir.fn_safe('final')}.html")
 
     print(f"Generating html summary {html_fname}")
     html = [html_common.HTML_PREFIX]
-    html.append(f'<h3>{settings.OUTPUT_FOLDER} - Final Layer</h3>')
+    html.append(f"<h3>{settings.OUTPUT_FOLDER} - Final Layer</h3>")
 
     # Loop through classes
     card_htmls = {}
-    for cl in trange(weight.shape[0], desc='Final classes'):
+    for cl in trange(weight.shape[0], desc="Final classes"):
         card_html = []
         # TODO: Make this compatible with non-ade20k
         cl_name = ade20k.I2S[cl]
         card_html.append(
             f'<div class="card contr contr_final">'
-                f'<div class="card-header">'
-                    f'<h5 class="mb-0">{cl_name}</h5>'
-                f'</div>'
-                f'<div class="card-body">'
+            f'<div class="card-header">'
+            f'<h5 class="mb-0">{cl_name}</h5>'
+            f"</div>"
+            f'<div class="card-body">'
         )
         all_contrs = []
         for contr_i, contr_name in enumerate(sorted(list(contributors.keys()))):
             contr_dict = contributors[contr_name]
-            if contr_dict['contr'][0] is None:
+            if contr_dict["contr"][0] is None:
                 continue
-            contr, inhib = contr_dict['contr']
+            contr, inhib = contr_dict["contr"]
             if contr.shape[0] != weight.shape[0]:
-                raise RuntimeError(f"Probably mismatched contrs: weight shape {weight.shape} contr shape {contr.shape}")
-            weight = contr_dict['weight']
+                raise RuntimeError(
+                    f"Probably mismatched contrs: weight shape {weight.shape} contr shape {contr.shape}"
+                )
+            weight = contr_dict["weight"]
             contr_url_str, contr_label_str, contr = html_common.to_labels(
-                cl, contr, weight, prev_tally, uname=cl_name)
+                cl, contr, weight, prev_tally, uname=cl_name
+            )
             inhib_url_str, inhib_label_str, inhib = html_common.to_labels(
-                cl, inhib, weight, prev_tally, uname=cl_name, label_class="inhib-label")
+                cl, inhib, weight, prev_tally, uname=cl_name, label_class="inhib-label"
+            )
 
             all_contrs.extend(contr)
 
@@ -68,7 +83,9 @@ def generate_final_layer_summary(ds, weight, last_features, last_thresholds, las
 
         all_contrs = list(set(all_contrs))
         # Save images with highest logits
-        cl_images = [i for i in range(len(last_features)) if f"{ds.scene(i)}-s" == cl_name]
+        cl_images = [
+            i for i in range(len(last_features)) if f"{ds.scene(i)}-s" == cl_name
+        ]
         cl_images = sorted(cl_images, key=lambda i: last_logits[i, cl], reverse=True)
         if cl_images:
             for i, im_index in enumerate(cl_images[:5]):
@@ -77,22 +94,28 @@ def generate_final_layer_summary(ds, weight, last_features, last_thresholds, las
                 html_imfn = ed.filename(f"html/image/{imfn_base}")
                 shutil.copy(imfn, html_imfn)
                 img_html = f'<img loading="lazy" class="mask-img" id="{cl_name}-{i}" data-masked="false" data-uname="{cl_name}" width="100" height="100" data-imfn="{imfn_base}" src="image/{imfn_base}">'
-                card_html.append(
-                    html_common.wrap_image(img_html)
-                )
+                card_html.append(html_common.wrap_image(img_html))
                 # Save masks
                 for cunit in all_contrs:
-                    imfn_alpha = imfn_base.replace('.jpg', '.png')
-                    mask = html_common.create_mask(im_index, cunit, last_features, last_thresholds, settings.IMG_SIZE)
-                    mask_fname = ed.filename(f"html/image/mask-{cunit + 1}-{imfn_alpha}")
+                    imfn_alpha = imfn_base.replace(".jpg", ".png")
+                    mask = html_common.create_mask(
+                        im_index,
+                        cunit,
+                        last_features,
+                        last_thresholds,
+                        settings.IMG_SIZE,
+                    )
+                    mask_fname = ed.filename(
+                        f"html/image/mask-{cunit + 1}-{imfn_alpha}"
+                    )
                     mask.save(mask_fname)
 
-        card_html.append(f'</div></div>')
-        card_html_str = ''.join(card_html)
+        card_html.append(f"</div></div>")
+        card_html_str = "".join(card_html)
         card_htmls[cl + 1] = card_html_str
         html.append(card_html_str)
 
-    html.append(html_common.HTML_SUFFIX);
-    with open(html_fname, 'w') as f:
-        f.write('\n'.join(html))
+    html.append(html_common.HTML_SUFFIX)
+    with open(html_fname, "w") as f:
+        f.write("\n".join(html))
     return card_htmls

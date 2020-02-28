@@ -15,14 +15,15 @@ import numpy as np
 from bs4 import BeautifulSoup
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
     parser = ArgumentParser(
-        description='consistency per layer',
-        formatter_class=ArgumentDefaultsHelpFormatter)
+        description="consistency per layer",
+        formatter_class=ArgumentDefaultsHelpFormatter,
+    )
 
-    parser.add_argument('--output_folder', default=None)
+    parser.add_argument("--output_folder", default=None)
 
     args = parser.parse_args()
 
@@ -35,28 +36,30 @@ if __name__ == '__main__':
 
     records = []
     for ln in layernames:
-        html_fname = os.path.join(output_f, 'html', f'{ln}.html')
-        with open(html_fname, 'r') as f:
+        html_fname = os.path.join(output_f, "html", f"{ln}.html")
+        with open(html_fname, "r") as f:
             html = f.read()
 
-        soup = BeautifulSoup(html, 'html.parser')
+        soup = BeautifulSoup(html, "html.parser")
 
-        unit_soup = soup.find_all('div', 'unit')
+        unit_soup = soup.find_all("div", "unit")
 
         for us in unit_soup:
-            unit = us.find('span', 'unitnum').text.strip().split('unit ')[1]
-            iou = us.find('span', 'iou').text.strip().split('IoU ')[1]
-            label = us.find('div', 'unitlabel').text.strip()
+            unit = us.find("span", "unitnum").text.strip().split("unit ")[1]
+            iou = us.find("span", "iou").text.strip().split("IoU ")[1]
+            label = us.find("div", "unitlabel").text.strip()
             # consistency
-            label, consistency = label.split(' (consistency: ')
+            label, consistency = label.split(" (consistency: ")
             consistency = consistency[:-1]
 
-            records.append({
-                'layer': ln,
-                'label': label,
-                'consistency': float(consistency),
-                'unit': int(unit),
-                'iou': float(iou)
-            })
+            records.append(
+                {
+                    "layer": ln,
+                    "label": label,
+                    "consistency": float(consistency),
+                    "unit": int(unit),
+                    "iou": float(iou),
+                }
+            )
 
-    pd.DataFrame(records).to_csv(os.path.join(output_f, 'consistency.csv'), index=False)
+    pd.DataFrame(records).to_csv(os.path.join(output_f, "consistency.csv"), index=False)

@@ -7,17 +7,17 @@ from PIL import Image
 import settings
 
 
-FILTERBOX = '''
+FILTERBOX = """
 <input type="text" placeholder="Filter by unit" id="filterField">
 <button type="button" class="filterby">Filter</button>
-'''
-HTML_SORTHEADER = '''
+"""
+HTML_SORTHEADER = """
 <div class="sortheader">
 sort by
 <span class="sortby currentsort" data-index="0">label</span>
 {}
 </div>
-'''
+"""
 
 
 def wrap_image(html, wrapper_classes=None, infos=None):
@@ -29,20 +29,20 @@ def wrap_image(html, wrapper_classes=None, infos=None):
     if infos is None:
         infos = []
 
-    wrc = ' ' + ' '.join(wrapper_classes)
-    info_htmls = [f'<p>{i}</p>' for i in infos]
+    wrc = " " + " ".join(wrapper_classes)
+    info_htmls = [f"<p>{i}</p>" for i in infos]
 
     wr_htmls = [
         f'<div class="img-wrapper{wrc}">',
         f'<div class="img-background">',
         html,
-        f'</div>',
+        f"</div>",
         f'<div class="img-wrapper-info">',
         *info_htmls,
-        f'</div>',
-        f'</div>'
+        f"</div>",
+        f"</div>",
     ]
-    return ''.join(wr_htmls)
+    return "".join(wr_htmls)
 
 
 def create_mask(index, unit, features, thresholds, imsize=settings.IMG_SIZE):
@@ -50,16 +50,18 @@ def create_mask(index, unit, features, thresholds, imsize=settings.IMG_SIZE):
     thresh = thresholds[unit]
     mask = (feats > thresh).astype(np.uint8) * 255
     mask = np.clip(mask, 50, 255)
-    if settings.PROBE_DATASET == 'cub':
+    if settings.PROBE_DATASET == "cub":
         mask = mask.T
     mask = Image.fromarray(mask).resize((imsize, imsize), resample=Image.NEAREST)
     # All black
-    mask_alpha = Image.fromarray(np.zeros((imsize, imsize), dtype=np.uint8), mode='L')
+    mask_alpha = Image.fromarray(np.zeros((imsize, imsize), dtype=np.uint8), mode="L")
     mask_alpha.putalpha(mask)
     return mask_alpha
 
 
-def to_labels(unit, contr, weight, prev_unit_names, uname=None, label_class="contr-label"):
+def to_labels(
+    unit, contr, weight, prev_unit_names, uname=None, label_class="contr-label"
+):
     """
     :param contr: binary ndarray of curr units x
     prev units; 1 if prev unit contributets to
@@ -68,11 +70,12 @@ def to_labels(unit, contr, weight, prev_unit_names, uname=None, label_class="con
     :param prev_unit_names: map from units to their names, *one-indexed*
     :param uname: if provided, use this as the unit name
     """
+
     def get_tally_label(u):
         u = u + 1
         if u not in prev_unit_names:
-            return 'unk'
-        return prev_unit_names[u]['label']
+            return "unk"
+        return prev_unit_names[u]["label"]
 
     contr = np.where(contr[unit])[0]
     weight = weight[unit, contr]
@@ -80,23 +83,23 @@ def to_labels(unit, contr, weight, prev_unit_names, uname=None, label_class="con
         uname = unit + 1
     contr_labels = [
         f'<span class="label {label_class}" data-unit="{u + 1}" data-uname="{uname}">{u + 1} ({get_tally_label(u)}, {w:.3f})</span>'
-        for u, w in
-        sorted(zip(contr, weight), key=lambda x: x[1], reverse=True)
+        for u, w in sorted(zip(contr, weight), key=lambda x: x[1], reverse=True)
     ]
-    contr_label_str = ', '.join(contr_labels)
-    contr_url_str = ','.join(map(str, [c + 1 for c in contr]))
+    contr_label_str = ", ".join(contr_labels)
+    contr_url_str = ",".join(map(str, [c + 1 for c in contr]))
     return contr_url_str, contr_label_str, contr
 
 
 def get_sortheader(names):
     return HTML_SORTHEADER.format(
-        '\n'.join(
+        "\n".join(
             f'<span class="sortby" data-index="{i}">{name}</span>'
             for i, name in enumerate(names, start=1)
         )
     )
 
-HTML_PREFIX = '''
+
+HTML_PREFIX = """
 <!DOCTYPE html>
 <html>
 <head>
@@ -261,9 +264,9 @@ background-color: #FF7F7F;
 </head>
 <body class="unitviz">
 <div class="container-fluid">
-'''
+"""
 
-HTML_SUFFIX = '''
+HTML_SUFFIX = """
 </div>
 <div class="modal" id="lightbox">
   <div class="modal-dialog big-modal" role="document">
@@ -427,4 +430,4 @@ $(document).ready(function() {
 </script>
 </body>
 </html>
-'''
+"""

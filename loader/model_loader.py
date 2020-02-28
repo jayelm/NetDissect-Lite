@@ -7,6 +7,7 @@ import torch.nn as nn
 def noop(*args, **kwargs):
     pass
 
+
 def Conv4(*args, num_classes=200, **kwargs):
     # Exactly the same as few-shot literature
     cn = ConvNet(4, num_classes, *args, **kwargs, pool_size=2, padding=1)
@@ -28,9 +29,7 @@ class ConvNet(nn.Module):
             else:
                 indim = 32
             outdim = 32
-            B = ConvBlock(
-                indim, outdim, pool=(i < 4),
-                **kwargs)
+            B = ConvBlock(indim, outdim, pool=(i < 4), **kwargs)
             trunk.append(B)
 
         trunk.append(nn.Flatten())
@@ -82,26 +81,40 @@ class ConvBlock(nn.Module):
         # self.BN.reset_parameters()
 
 
-def loadmodel(hook_fn, feature_names=settings.FEATURE_NAMES, hook_modules=None, pretrained_override=None):
-    device = torch.device('cuda' if settings.GPU else 'cpu')
-    if settings.MODEL == 'conv4':
+def loadmodel(
+    hook_fn,
+    feature_names=settings.FEATURE_NAMES,
+    hook_modules=None,
+    pretrained_override=None,
+):
+    device = torch.device("cuda" if settings.GPU else "cpu")
+    if settings.MODEL == "conv4":
         model_fn = Conv4
     else:
         model_fn = torchvision.models.__dict__[settings.MODEL]
 
     if settings.MODEL_FILE is None:
-        if settings.MODEL == 'conv4':
+        if settings.MODEL == "conv4":
             raise NotImplementedError("No pretrained conv4")
-        model = model_fn(pretrained=pretrained_override if pretrained_override is not None else True)
-    elif settings.MODEL_FILE == '<UNTRAINED>':
-        model = model_fn(pretrained=pretrained_override if pretrained_override is not None else False)
+        model = model_fn(
+            pretrained=pretrained_override if pretrained_override is not None else True
+        )
+    elif settings.MODEL_FILE == "<UNTRAINED>":
+        model = model_fn(
+            pretrained=pretrained_override if pretrained_override is not None else False
+        )
     else:
         checkpoint = torch.load(settings.MODEL_FILE, map_location=device)
-        if type(checkpoint).__name__ == 'OrderedDict' or type(checkpoint).__name__ == 'dict':
+        if (
+            type(checkpoint).__name__ == "OrderedDict"
+            or type(checkpoint).__name__ == "dict"
+        ):
             model = model_fn(num_classes=settings.NUM_CLASSES)
             if settings.MODEL_PARALLEL:
-                state_dict = {str.replace(k, 'module.', ''): v for k, v in checkpoint[
-                    'state_dict'].items()}  # the data parallel layer will add 'module' before each layer name
+                state_dict = {
+                    str.replace(k, "module.", ""): v
+                    for k, v in checkpoint["state_dict"].items()
+                }  # the data parallel layer will add 'module' before each layer name
             else:
                 state_dict = checkpoint
             model.load_state_dict(state_dict)

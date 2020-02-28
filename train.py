@@ -19,24 +19,25 @@ from torch.utils.data import DataLoader
 from util import train_utils as tutil
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
     parser = ArgumentParser(
-        description=__doc__,
-        formatter_class=ArgumentDefaultsHelpFormatter)
+        description=__doc__, formatter_class=ArgumentDefaultsHelpFormatter
+    )
 
-    parser.add_argument('--data_dir', default='dataset/CUB_200_2011',
-                        help='Dataset to load from')
-    parser.add_argument('--batch_size', default=32,
-                        type=int, help='Train batch size')
-    parser.add_argument('--epochs', default=50, type=int,
-                        help='Training epochs')
-    parser.add_argument('--seed', default=42, type=int,
-                        help='Default seed')
-    parser.add_argument('--save_dir', default=f'./zoo/trained/{settings.MODEL}_cub_finetune',
-                        help='Where to save the model')
-    parser.add_argument('--debug', action='store_true')
+    parser.add_argument(
+        "--data_dir", default="dataset/CUB_200_2011", help="Dataset to load from"
+    )
+    parser.add_argument("--batch_size", default=32, type=int, help="Train batch size")
+    parser.add_argument("--epochs", default=50, type=int, help="Training epochs")
+    parser.add_argument("--seed", default=42, type=int, help="Default seed")
+    parser.add_argument(
+        "--save_dir",
+        default=f"./zoo/trained/{settings.MODEL}_cub_finetune",
+        help="Where to save the model",
+    )
+    parser.add_argument("--debug", action="store_true")
 
     args = parser.parse_args()
 
@@ -48,24 +49,26 @@ if __name__ == '__main__':
     os.makedirs(args.save_dir, exist_ok=True)
     tutil.save_args(args, args.save_dir)
 
-    datasets = load_cub(args.data_dir, random_state=random,
-                        max_classes=5 if args.debug else None)
-    dataloaders = {s: to_dataloader(d, batch_size=args.batch_size)
-                   for s, d in datasets.items()}
+    datasets = load_cub(
+        args.data_dir, random_state=random, max_classes=5 if args.debug else None
+    )
+    dataloaders = {
+        s: to_dataloader(d, batch_size=args.batch_size) for s, d in datasets.items()
+    }
 
     # Always load pretrained
     model = loadmodel(None, pretrained_override=True)
     # Replace the last layer
-    if settings.MODEL == 'resnet18':
+    if settings.MODEL == "resnet18":
         inf = 512
-    elif settings.MODEL == 'resnet101':
+    elif settings.MODEL == "resnet101":
         inf = 2048
-    elif settings.MODEL == 'conv4':
+    elif settings.MODEL == "conv4":
         inf = 6272
     else:
         raise NotImplementedError
 
-    model.fc = nn.Linear(in_features=inf, out_features=datasets['train'].n_classes)
+    model.fc = nn.Linear(in_features=inf, out_features=datasets["train"].n_classes)
 
     # Re-move the model on/off GPU
     if settings.GPU:
@@ -77,9 +80,9 @@ if __name__ == '__main__':
     optimizer = optim.Adam(model.parameters())
 
     def run(split, epoch):
-        training = split == 'train'
+        training = split == "train"
         loader = dataloaders[split]
-        meters = {m: tutil.AverageMeter() for m in ['loss', 'acc']}
+        meters = {m: tutil.AverageMeter() for m in ["loss", "acc"]}
         if training:
             model.train()
             ctx = contextlib.nullcontext()
@@ -107,28 +110,30 @@ if __name__ == '__main__':
 
                 preds = logits.argmax(1)
                 acc = (preds == classes).float().mean()
-                meters['loss'].update(loss.item(), batch_size)
-                meters['acc'].update(acc.item(), batch_size)
+                meters["loss"].update(loss.item(), batch_size)
+                meters["acc"].update(acc.item(), batch_size)
 
-                progress_loader.set_description(f"{split.upper():<6} {epoch:3} loss {meters['loss'].avg:.4f} acc {meters['acc'].avg:.4f}")
+                progress_loader.set_description(
+                    f"{split.upper():<6} {epoch:3} loss {meters['loss'].avg:.4f} acc {meters['acc'].avg:.4f}"
+                )
 
         return {k: m.avg for k, m in meters.items()}
 
     metrics = defaultdict(list)
-    metrics['best_val_acc'] = 0.0
-    metrics['best_val_loss'] = float('inf')
-    metrics['best_epoch'] = 0
-    for epoch in trange(args.epochs, desc='Epoch'):
-        for split in ['train', 'val', 'test']:
+    metrics["best_val_acc"] = 0.0
+    metrics["best_val_loss"] = float("inf")
+    metrics["best_epoch"] = 0
+    for epoch in trange(args.epochs, desc="Epoch"):
+        for split in ["train", "val", "test"]:
             split_metrics = run(split, epoch)
             for m, val in split_metrics.items():
-                metrics[f'{split}_{m}'].append(val)
-        tqdm.write('')
+                metrics[f"{split}_{m}"].append(val)
+        tqdm.write("")
 
-        if metrics['val_acc'][-1] > metrics['best_val_acc']:
-            metrics['best_val_acc'] = metrics['val_acc'][-1]
-            metrics['best_val_loss'] = metrics['val_loss'][-1]
-            metrics['best_epoch'] = epoch
+        if metrics["val_acc"][-1] > metrics["best_val_acc"]:
+            metrics["best_val_acc"] = metrics["val_acc"][-1]
+            metrics["best_val_loss"] = metrics["val_loss"][-1]
+            metrics["best_epoch"] = epoch
             tutil.save_model(model, True, args.save_dir)
 
         tutil.save_metrics(metrics, args.save_dir)

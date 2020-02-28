@@ -40,11 +40,11 @@ class UnaryNode(Node):
         self.val = val
 
     def __str__(self):
-        return f'({self.op} {self.val})'
+        return f"({self.op} {self.val})"
 
     def to_str(self, namer):
         not_name = self.val.to_str(namer)
-        return f'({self.op} {not_name})'
+        return f"({self.op} {not_name})"
 
     def __len__(self):
         return 1 + len(self.val)
@@ -67,12 +67,12 @@ class BinaryNode(Node):
         self.right = right
 
     def __str__(self):
-        return f'({self.left} {self.op} {self.right})'
+        return f"({self.left} {self.op} {self.right})"
 
     def to_str(self, namer):
         left_name = self.left.to_str(namer)
         right_name = self.right.to_str(namer)
-        return f'({left_name} {self.op} {right_name})'
+        return f"({left_name} {self.op} {right_name})"
 
     def __len__(self):
         return len(self.left) + len(self.right)
@@ -91,15 +91,15 @@ class BinaryNode(Node):
 
 
 class Not(UnaryNode):
-    op = 'NOT'
+    op = "NOT"
 
 
 class Or(BinaryNode):
-    op = 'OR'
+    op = "OR"
 
 
 class And(BinaryNode):
-    op = 'AND'
+    op = "AND"
 
 
 UNARY_OPS = [Not]
@@ -107,7 +107,7 @@ BINARY_OPS = [Or, And]
 
 
 # The most unnecessary thing I've ever done
-identifier = pp.Word(pp.alphas.lower() + pp.nums + '-_ :')("FirstExpression")
+identifier = pp.Word(pp.alphas.lower() + pp.nums + "-_ :")("FirstExpression")
 condition = pp.Group(identifier)("MainBody")
 
 # define AND, OR, and NOT as keywords, with "operator" results names
@@ -115,11 +115,14 @@ AND_ = pp.Keyword("AND")("operator")
 OR_ = pp.Keyword("OR")("operator")
 NOT_ = pp.Keyword("NOT")("operator")
 
-expr = pp.operatorPrecedence(condition,[
-                            (NOT_, 1, pp.opAssoc.RIGHT, ),
-                            (AND_, 2, pp.opAssoc.LEFT, ),
-                            (OR_, 2, pp.opAssoc.LEFT, ),
-                            ])
+expr = pp.operatorPrecedence(
+    condition,
+    [
+        (NOT_, 1, pp.opAssoc.RIGHT,),
+        (AND_, 2, pp.opAssoc.LEFT,),
+        (OR_, 2, pp.opAssoc.LEFT,),
+    ],
+)
 
 # undocumented hack to assign a results name to (expr) - RED FLAG
 expr.expr.resultsName = "group"
@@ -130,7 +133,7 @@ def parse(fstr, reverse_namer=lambda x: x):
     Parse a string representation back into formula.
     Reverse_namer converts back from names to actual integer indices
     """
-    flist = expr.parseString(fstr)[0] # extract item 0 from single-item list
+    flist = expr.parseString(fstr)[0]  # extract item 0 from single-item list
     return parse_flist(flist, reverse_namer)
 
 
@@ -141,18 +144,18 @@ def parse_flist(flist, reverse_namer):
         return Leaf(reverse_namer(val))
     elif len(flist) == 2:
         # Unary op
-        if flist[0] == 'NOT':
+        if flist[0] == "NOT":
             val = parse_flist(flist[1], reverse_namer)
             return Not(val)
         else:
             raise ValueError(f"Could not parse {flist}")
     elif len(flist) == 3:
         # Binary op
-        if flist[1] == 'OR':
+        if flist[1] == "OR":
             left = parse_flist(flist[0], reverse_namer)
             right = parse_flist(flist[2], reverse_namer)
             return Or(left, right)
-        elif flist[1] == 'AND':
+        elif flist[1] == "AND":
             left = parse_flist(flist[0], reverse_namer)
             right = parse_flist(flist[2], reverse_namer)
             return And(left, right)

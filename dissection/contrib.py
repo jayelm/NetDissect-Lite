@@ -50,23 +50,24 @@ def get_feat_corr(features, flattened=False):
         # cor(x, x)  cor(x, y)
         # cor(y, x)  cor(y, y)
         # Get top right (starts after x.shape, x.shape)
-        corr = corr[:curr_flat.shape[0], curr_flat.shape[0]:]
+        corr = corr[: curr_flat.shape[0], curr_flat.shape[0] :]
         corrs.append(corr)
     return corrs
 
 
-def get_act_iou(features, threshold, mode='contr'):
+def get_act_iou(features, threshold, mode="contr"):
     """
     Jaccard similarity between "active" neurons, where activations are defined
     via thresholds
     """
-    if mode not in {'contr', 'inhib'}:
+    if mode not in {"contr", "inhib"}:
         raise ValueError(mode)
     # Get jaccard similarity between "active" neurons (where activations are
     # Get correlations between firing patterns across the features
     ious = [None]
-    for prev, curr, prev_thresh, curr_thresh in zip(features, features[1:],
-                                                    threshold, threshold[1:]):
+    for prev, curr, prev_thresh, curr_thresh in zip(
+        features, features[1:], threshold, threshold[1:]
+    ):
         if prev.shape[2:] != curr.shape[2:]:
             prev = reduce_feats(prev, curr)
         prev = flatten_features(prev)
@@ -75,10 +76,10 @@ def get_act_iou(features, threshold, mode='contr'):
         curr_acts = curr > curr_thresh[:, np.newaxis]
         prev_acts = prev > prev_thresh[:, np.newaxis]
 
-        if mode == 'inhib':
+        if mode == "inhib":
             curr_acts = 1 - curr_acts
 
-        iou = 1 - cdist(curr_acts, prev_acts, metric='jaccard')
+        iou = 1 - cdist(curr_acts, prev_acts, metric="jaccard")
         ious.append(iou)
     return ious
 
@@ -89,7 +90,7 @@ def get_act_iou_inhib(features, threshold):
     Jaccard similarity between active neurons of previous layer and inactive
     neurons of current layer, where activations are defined via thresholds
     """
-    return get_act_iou(features, threshold, mode='inhib')
+    return get_act_iou(features, threshold, mode="inhib")
 
 
 def get_weights(modules):
@@ -142,11 +143,13 @@ def threshold_contributors(weights, n=None, alpha=None, alpha_global=None):
         else:
             # Compute by threshold
             if alpha_global is not None:
-                thresholds = np.quantile(curr, [alpha_global, 1 - alpha_global],
-                                         keepdims=True)
+                thresholds = np.quantile(
+                    curr, [alpha_global, 1 - alpha_global], keepdims=True
+                )
             elif alpha is not None:
-                thresholds = np.quantile(curr, [alpha, 1 - alpha],
-                                         axis=1, keepdims=True)
+                thresholds = np.quantile(
+                    curr, [alpha, 1 - alpha], axis=1, keepdims=True
+                )
             inhib_threshold = thresholds[0]
             contr_threshold = thresholds[1]
 

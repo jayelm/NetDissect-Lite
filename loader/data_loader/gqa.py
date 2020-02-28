@@ -33,22 +33,20 @@ def load_gqa(data_dir, max_images=None):
     """
     Load GQA dataset.
     """
-    return {
-        'train': GQADataset(data_dir, max_images=max_images, split='val')
-    }
+    return {"train": GQADataset(data_dir, max_images=max_images, split="val")}
 
 
 def to_bbox(odata):
-    return [odata['x'], odata['y'], odata['x'] + odata['w'], odata['y'] + odata['h']]
+    return [odata["x"], odata["y"], odata["x"] + odata["w"], odata["y"] + odata["h"]]
 
 
 def annotate_image(im, graph):
     im = im.copy()
     draw = ImageDraw.Draw(im)
-    for odata in graph['objects'].values():
+    for odata in graph["objects"].values():
         bb = to_bbox(odata)
-        draw.rectangle(bb, fill=None, outline='black')
-        draw.text((odata['x'], odata['y']), odata['name'])
+        draw.rectangle(bb, fill=None, outline="black")
+        draw.text((odata["x"], odata["y"]), odata["name"])
     return im
 
 
@@ -56,11 +54,11 @@ class GQADataset:
 
     DIM = 224
 
-    def __init__(self, data_dir, max_images=None, split='train'):
+    def __init__(self, data_dir, max_images=None, split="train"):
         self.data_dir = data_dir
         self.split = split
-        sg_fname = os.path.join(data_dir, f'{split}_sceneGraphs.json')
-        with open(sg_fname, 'r') as f:
+        sg_fname = os.path.join(data_dir, f"{split}_sceneGraphs.json")
+        with open(sg_fname, "r") as f:
             self.scene_graphs = json.load(f)
         self.scene_ids = list(self.scene_graphs.keys())
         if max_images is not None:
@@ -72,7 +70,7 @@ class GQADataset:
     def __getitem__(self, i):
         sid = self.scene_ids[i]
         graph = self.scene_graphs[sid]
-        img_fname = os.path.join(self.data_dir, 'images', f'{sid}.jpg')
+        img_fname = os.path.join(self.data_dir, "images", f"{sid}.jpg")
         img = Image.open(img_fname)
         img_rsz = img.resize((self.DIM, self.DIM))
         img_arr = np.array(img_rsz)
@@ -81,14 +79,14 @@ class GQADataset:
 
     def resize_graph(self, graph):
         # TODO: Cache resized values?
-        w_ratio = self.DIM / graph['width']
-        h_ratio = self.DIM / graph['height']
-        new_graph = {'width': self.DIM, 'height': self.DIM, 'objects': {}}
-        for oid, odata in graph['objects'].items():
+        w_ratio = self.DIM / graph["width"]
+        h_ratio = self.DIM / graph["height"]
+        new_graph = {"width": self.DIM, "height": self.DIM, "objects": {}}
+        for oid, odata in graph["objects"].items():
             new_odata = odata.copy()
-            new_odata['h'] = int(round(odata['h'] * h_ratio))
-            new_odata['w'] = int(round(odata['w'] * w_ratio))
-            new_odata['y'] = int(round(odata['y'] * h_ratio))
-            new_odata['x'] = int(round(odata['x'] * w_ratio))
-            new_graph['objects'][oid] = new_odata
+            new_odata["h"] = int(round(odata["h"] * h_ratio))
+            new_odata["w"] = int(round(odata["w"] * w_ratio))
+            new_odata["y"] = int(round(odata["y"] * h_ratio))
+            new_odata["x"] = int(round(odata["x"] * w_ratio))
+            new_graph["objects"][oid] = new_odata
         return new_graph

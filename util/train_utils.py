@@ -17,7 +17,7 @@ def current_git_hash():
     """
     unstaged_changes = False
     try:
-        subprocess.check_output(['git', 'diff-index', '--quiet', 'HEAD', '--'])
+        subprocess.check_output(["git", "diff-index", "--quiet", "HEAD", "--"])
     except subprocess.CalledProcessError as grepexc:
         if grepexc.returncode == 1:
             warnings.warn("Running experiments with unstaged changes.")
@@ -25,14 +25,17 @@ def current_git_hash():
     except FileNotFoundError:
         warnings.warn("Git not found")
     try:
-        git_hash = subprocess.check_output(['git', 'describe', '--always'
-                                            ]).strip().decode('utf-8')
+        git_hash = (
+            subprocess.check_output(["git", "describe", "--always"])
+            .strip()
+            .decode("utf-8")
+        )
         return git_hash, unstaged_changes
     except subprocess.CalledProcessError:
         return None, None
 
 
-def save_metrics(metrics, exp_dir, filename='metrics.json'):
+def save_metrics(metrics, exp_dir, filename="metrics.json"):
     """
     Load metrics from the given exp directory..
     Parameters
@@ -44,15 +47,11 @@ def save_metrics(metrics, exp_dir, filename='metrics.json'):
     filename : ``str``, optional (default: 'metrics.json')
         Name of metrics file
     """
-    with open(os.path.join(exp_dir, filename), 'w') as f:
-        json.dump(dict(metrics),
-                  f,
-                  indent=4,
-                  separators=(',', ': '),
-                  sort_keys=True)
+    with open(os.path.join(exp_dir, filename), "w") as f:
+        json.dump(dict(metrics), f, indent=4, separators=(",", ": "), sort_keys=True)
 
 
-def save_args(args, exp_dir, filename='args.json'):
+def save_args(args, exp_dir, filename="args.json"):
     """
     Save arguments in the experiment directory. This is REALLY IMPORTANT for
     reproducibility, so you know exactly what configuration of arguments
@@ -69,20 +68,16 @@ def save_args(args, exp_dir, filename='args.json'):
         Name of argument file
     """
     args_dict = vars(args)
-    args_dict['git_hash'], args_dict[
-        'git_unstaged_changes'] = current_git_hash()
-    with open(os.path.join(exp_dir, filename), 'w') as f:
-        json.dump(args_dict,
-                  f,
-                  indent=4,
-                  separators=(',', ': '),
-                  sort_keys=True)
+    args_dict["git_hash"], args_dict["git_unstaged_changes"] = current_git_hash()
+    with open(os.path.join(exp_dir, filename), "w") as f:
+        json.dump(args_dict, f, indent=4, separators=(",", ": "), sort_keys=True)
 
 
 class AverageMeter:
     """
     Keeps track of most recent, average, sum, and count of a metric.
     """
+
     def __init__(self):
         self.reset()
         self.reset_running_avg()
@@ -113,14 +108,13 @@ class AverageMeter:
         self.running_avg = self.running_sum / self.running_count
 
 
-def save_model(model,
-               is_best,
-               exp_dir,
-               filename='checkpoint.pth',
-               best_filename='model_best.pth'):
+def save_model(
+    model, is_best, exp_dir, filename="checkpoint.pth", best_filename="model_best.pth"
+):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         torch.save(model, os.path.join(exp_dir, filename))
     if is_best:
-        shutil.copyfile(os.path.join(exp_dir, filename),
-                        os.path.join(exp_dir, best_filename))
+        shutil.copyfile(
+            os.path.join(exp_dir, filename), os.path.join(exp_dir, best_filename)
+        )
