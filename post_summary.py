@@ -47,12 +47,11 @@ if __name__ == '__main__':
         soup = posthoc.load_html(html_fname)
         for record, unit in tqdm(posthoc.units(soup, layername=ln, yield_soup=True), desc=ln):
             wns = summary.wn_summarize(record['label'], lambda x: x)
+            emb = summary.emb_summarize(record['label'], lambda x: x)
             u = unit.find('div', 'unitlabel')
-            u.string = f'{u.text} (summary: {wns})'
+            u.string = f'{u.text} (wn summary: {wns}) (emb summary: {emb})'
 
-        wn_summarized = html_fname.replace('.html', '_wn_summary.html')
+        wn_summarized = html_fname.replace('.html', '_summarized.html')
         print(f"Saving to {wn_summarized}")
         with open(wn_summarized, 'w') as f:
             f.write(str(soup))
-
-        breakpoint()
