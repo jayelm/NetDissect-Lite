@@ -93,8 +93,14 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
         settings.SCORE_THRESHOLD))
     html.append('</div>')
     sort_by = ['score', 'unit']
+
     if settings.SEMANTIC_CONSISTENCY:
         sort_by.append('consistency')
+    if settings.EMBEDDING_SUMMARY:
+        sort_by.append('emb_summary')
+    if settings.WN_SUMMARY:
+        sort_by.append('wn_summary')
+
     html.append(html_common.get_sortheader(sort_by))
     html.append('</div>')
 
@@ -111,6 +117,8 @@ def generate_html_summary(ds, layer, preds, mc, maxfeature=None, features=None, 
     # Assign ordering based on score, consistency, and/or
     order_by(rendered_order, 'score')
     order_by(rendered_order, 'consistency')
+    order_by(rendered_order, 'emb_summary_sim')
+    order_by(rendered_order, 'wn_summary_sim')
 
     # TODO: Make embedding summary searchable too.
 

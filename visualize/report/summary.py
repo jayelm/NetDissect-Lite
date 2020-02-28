@@ -169,13 +169,13 @@ def find_path(src, dest, path_types=PATH_TYPES):
 def wn_midpoint(src, dest):
     path = find_path(src, dest)
     if path is None:
-        return None
+        return None, None
     if len(path) == 0:
         # Same item
-        return src
+        return src, 0
     else:
         midp = len(path) // 2
-        return path[midp]
+        return path[midp], midp
 
 
 def wn_summarize(f, namer):
@@ -189,18 +189,20 @@ def wn_summarize(f, namer):
 
     synsets = [get_synset(s) for s in leaves]
     if all(s is None for s in synsets):
-        return 'unk', 0.0
+        return 'unk', 0
     synsets = [s for s in synsets if s is not None]
 
     if len(synsets) == 1:
-        return str(synsets[0])
+        return str(synsets[0]), 0
+    total_dist = 0
     # Find midpoint between each pair, then find midpoints of the midpoints
     while len(synsets) > 1:
         a = synsets.pop(0)
         b = synsets.pop(0)
-        midp = wn_midpoint(a, b)
+        midp, dist = wn_midpoint(a, b)
+        total_dist += dist
         if midp is None:
             return 'unk', 0.0
         synsets.append(midp)
 
-    return str(synsets[0])
+    return str(synsets[0]), total_dist

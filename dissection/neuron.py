@@ -327,8 +327,9 @@ class NeuronOperator:
                     )
 
                 wn_summary = ''
+                wn_summary_sim = 0.0
                 if settings.WN_SUMMARY and len(best_lab) > 1:
-                    wn_summary = summary.wn_summarize(
+                    wn_summary, wn_summary_sim = summary.wn_summarize(
                         best_lab,
                         namer
                     )
@@ -345,6 +346,7 @@ class NeuronOperator:
                     'emb_summary': emb_summary,
                     'emb_summary_sim': emb_summary_sim,
                     'wn_summary': wn_summary,
+                    'wn_summary_sim': wn_summary_sim,
                     'consistency': consistency,
                     'category_noncomp': best_noncomp_cat,
                     'label_noncomp': best_noncomp_name,

@@ -105,8 +105,9 @@ def make_card_html(ed, label_order, record, ds, mc, layer, gridname, top, featur
     contr_str = f'<div id="contr-{unit + 1}">{contr_str}</div>'
 
     graytext = ' lowscore' if float(record['score']) < settings.SCORE_THRESHOLD else ''
-    html.append('<div class="unit%s" data-order="%d %d %d %d">' %
-            (graytext, label_order, record['score-order'], unit + 1, record['consistency-order']))
+    html.append('<div class="unit%s" data-order="%d %d %d %d %d %d">' %
+            (graytext, label_order, record['score-order'], unit + 1, record['consistency-order'],
+             record['emb_summary_sim-order'], record['wn_summary_sim-order']))
     html.append(f"<div class='unitlabel'>{fix(record['label'])}</div>")
     html.append('<div class="info">' +
         '<span class="layername">%s</span> ' % layer +
@@ -114,8 +115,8 @@ def make_card_html(ed, label_order, record, ds, mc, layer, gridname, top, featur
         '<span class="category">(%s)</span> ' % record['category'] +
         '<span class="iou">IoU %.2f</span>' % float(record['score']) +
         '<span class="consistency">Consistency %.2f</span> ' % float(record['consistency']) +
-        '<span class="emb_summary">emb summary %s</span> ' % record['emb_summary'] +
-        '<span class="wn_summary">wn summary %s</span> ' % record['wn_summary'] +
+        f'<span class="emb_summary">emb-s {record["emb_summary"]} ({record["emb_summary_sim"]:.2f})</span> ' +
+        f'<span class="wn_summary">wn-s {record["wn_summary"]} ({record["wn_summary_sim"]:.2f})</span> ' +
         contr_str +
         '</div>')
 

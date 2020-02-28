@@ -40,18 +40,35 @@ if __name__ == '__main__':
     else:
         layernames = list(map(safe_layername, settings.FEATURE_NAMES))
 
-    records = []
     for ln in layernames:
+        print(ln)
+        records = []
         html_fname = os.path.join(output_f, 'html', f'{ln}.html')
 
         soup = posthoc.load_html(html_fname)
+        i = 0
         for record, unit in tqdm(posthoc.units(soup, layername=ln, yield_soup=True), desc=ln):
-            wns = summary.wn_summarize(record['label'], lambda x: x)
-            emb = summary.emb_summarize(record['label'], lambda x: x)
+            i += 1
+            if i > 10:
+                break
+            wns, wns_sim = summary.wn_summarize(record['label'], lambda x: x)
+            emb, emb_sim = summary.emb_summarize(record['label'], lambda x: x)
             u = unit.find('div', 'unitlabel')
             u.string = f'{u.text} (wn summary: {wns}) (emb summary: {emb})'
 
+            # We don't need the original label anymore
+            record['wn_summary'] = wns
+            record['wn_summary_sim'] = wns_sim
+            record['emb_summary'] = emb
+            record['emb_summary_sim'] = emb_sim
+            record['label'] = record['label_str']
+            del record['label_str']
+
+            records.append(record)
+
         wn_summarized = html_fname.replace('.html', '_summarized.html')
-        print(f"Saving to {wn_summarized}")
         with open(wn_summarized, 'w') as f:
             f.write(str(soup))
+
+        csv_fname = os.path.join(output_f, f'tally_{ln}_summarized.csv')
+        pd.DataFrame(records).to_csv(csv_fname, index=False)
