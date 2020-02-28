@@ -11,13 +11,19 @@ index = pd.read_csv('./dataset/broden1_224/index.csv')
 
 dsets = index.image.str.split('/').map(itemgetter(0))
 
-SPLITS = dsets.unique()
+SPLITS = sorted(dsets.unique().tolist())
+COMBOS = [('dtd', 'opensurfaces')]
 
-for split in SPLITS:
-    print(split)
-    splitdf = index[dsets == split].copy()
+for split in SPLITS + COMBOS:
+    if isinstance(split, tuple):
+        split_name = '_'.join(sorted(split))
+        splitdf = index[dsets.isin(split)].copy()
+    else:
+        split_name = split
+        splitdf = index[dsets == split].copy()
+    print(split_name)
 
-    splitdf.to_csv(f'./dataset/broden1_224/index_{split}.csv', index=False, float_format='%d')
+    splitdf.to_csv(f'./dataset/broden1_224/index_{split_name}.csv', index=False, float_format='%d')
 
     # Random version: shuffle all masks
     splitdf['color'] = np.random.permutation(splitdf['color'].values)
@@ -27,4 +33,4 @@ for split in SPLITS:
     splitdf['part'] = np.random.permutation(splitdf['part'].values)
     splitdf['scene'] = np.random.permutation(splitdf['scene'].values)
 
-    splitdf.to_csv(f'./dataset/broden1_224/index_{split}_random.csv', index=False, float_format='%d')
+    splitdf.to_csv(f'./dataset/broden1_224/index_{split_name}_random.csv', index=False, float_format='%d')
