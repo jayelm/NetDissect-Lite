@@ -11,7 +11,7 @@ from util.misc import safe_layername
 import os
 import pandas as pd
 import numpy as np
-from tqmd import tqmd
+from tqdm import tqdm
 
 
 from visualize.report import summary
