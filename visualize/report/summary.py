@@ -20,7 +20,7 @@ def filter_oov(nlps):
 
 def clean(leaves, to_underscore=False):
     if to_underscore:
-        leaves = [l.replace('-', '_') for l in leaves]
+        leaves = [l.replace('-', '_').replace(' ', '_') for l in leaves]
         leaves = [l[:-2] if l.endswith('_s') else l for l in leaves]
         leaves = [l[:-2] if l.endswith('_c') else l for l in leaves]
     else:
@@ -170,8 +170,12 @@ def wn_midpoint(src, dest):
     path = find_path(src, dest)
     if path is None:
         return None
-    midp = len(path) // 2
-    return path[midp]
+    if len(path) == 0:
+        # Same item
+        return src
+    else:
+        midp = len(path) // 2
+        return path[midp]
 
 
 def wn_summarize(f, namer):
