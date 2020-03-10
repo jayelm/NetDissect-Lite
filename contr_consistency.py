@@ -95,13 +95,14 @@ def contr_final(layernames, contrs_spread):
             weights = cs[by]["weight"][cl]
             contrs = cs[by]["contr"][0][cl]
             for ui, (w, c) in enumerate(zip(weights, contrs)):
-                clab = prev_tally[ui]["label"]
-                records.append(
+                prev_record = prev_tally[ui].copy()
+                prev_record["contr_label"] = prev_record["label"]
+                del prev_record["label"]
+                prev_record.update(
                     {
                         "class": cl,
-                        "label": ade20k.I2S[cl],
+                        "class_label": ade20k.I2S[cl],
                         "unit": ui,
-                        "contr_label": clab,
                         "weight": w,
                         "is_contr": c,
                         "by": by,
@@ -133,8 +134,8 @@ if __name__ == "__main__":
     with open(os.path.join(output_f, "contrib.pkl"), "rb") as f:
         contrs_spread = pickle.load(f)
 
-    contr_c_df = contr_c(layernames, contrs_spread)
-    contr_c_df.to_csv(os.path.join(output_f, "contr_c.csv"), index=False)
+    #  contr_c_df = contr_c(layernames, contrs_spread)
+    #  contr_c_df.to_csv(os.path.join(output_f, "contr_c.csv"), index=False)
 
     contr_final_df = contr_final(layernames, contrs_spread)
     contr_final_df.to_csv(os.path.join(output_f, "contr_final.csv"), index=False)
