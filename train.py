@@ -34,7 +34,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", default=32, type=int, help="Train batch size")
     parser.add_argument("--workers", default=4, type=int, help="Train batch size")
     parser.add_argument("--epochs", default=50, type=int, help="Training epochs")
-    parser.add_argument("--save_every", default=5, type=int, help="Save model every n epochs")
+    parser.add_argument("--save_every", default=1, type=int, help="Save model every n epochs")
     parser.add_argument("--seed", default=42, type=int, help="Default seed")
     parser.add_argument(
         "--save_dir",
