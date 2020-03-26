@@ -108,6 +108,7 @@ def contr_final(layernames, contrs_spread):
                         "by": by,
                     }
                 )
+                records.append(prev_record)
     return pd.DataFrame(records)
 
 
