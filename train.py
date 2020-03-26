@@ -5,6 +5,7 @@ Train a model for CUB classification
 import settings
 from loader.model_loader import loadmodel
 from loader.data_loader.cub import load_cub, to_dataloader
+from loader.data_loader.ade20k import load_ade20k
 from tqdm import tqdm, trange
 import numpy as np
 from collections import defaultdict
@@ -27,10 +28,13 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--data_dir", default="dataset/CUB_200_2011", help="Dataset to load from"
+        "--dataset", default="cub", choices=["cub", "ade20k"],
+        help="Dataset to train on"
     )
     parser.add_argument("--batch_size", default=32, type=int, help="Train batch size")
+    parser.add_argument("--workers", default=4, type=int, help="Train batch size")
     parser.add_argument("--epochs", default=50, type=int, help="Training epochs")
+    parser.add_argument("--save_every", default=5, type=int, help="Save model every n epochs")
     parser.add_argument("--seed", default=42, type=int, help="Default seed")
     parser.add_argument(
         "--save_dir",
@@ -41,19 +45,28 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    if args.dataset == 'cub':
+        data_dir = 'dataset/CUB_200_2011'
+        loader = load_cub
+    else:
+        data_dir = 'dataset/ADE20K_2016_07_26/'
+        loader = load_ade20k
+
+    save_dir = f"./zoo/trained/{settings.MODEL}_{args.dataset}_finetune"
+
     torch.manual_seed(args.seed)
     random = np.random.seed(args.seed)
 
     args = parser.parse_args()
 
-    os.makedirs(args.save_dir, exist_ok=True)
-    tutil.save_args(args, args.save_dir)
+    os.makedirs(save_dir, exist_ok=True)
+    tutil.save_args(args, save_dir)
 
-    datasets = load_cub(
-        args.data_dir, random_state=random, max_classes=5 if args.debug else None
+    datasets = loader(
+        data_dir, random_state=random, max_classes=5 if args.debug else None
     )
     dataloaders = {
-        s: to_dataloader(d, batch_size=args.batch_size) for s, d in datasets.items()
+        s: to_dataloader(d, batch_size=args.batch_size, num_workers=args.workers) for s, d in datasets.items()
     }
 
     # Always load pretrained
@@ -123,8 +136,13 @@ if __name__ == "__main__":
     metrics["best_val_acc"] = 0.0
     metrics["best_val_loss"] = float("inf")
     metrics["best_epoch"] = 0
+
+    splits = ['train', 'val']
+    if 'test' in dataloaders.keys():
+        splits.append('test')
+
     for epoch in trange(args.epochs, desc="Epoch"):
-        for split in ["train", "val", "test"]:
+        for split in splits:
             split_metrics = run(split, epoch)
             for m, val in split_metrics.items():
                 metrics[f"{split}_{m}"].append(val)
@@ -134,6 +152,8 @@ if __name__ == "__main__":
             metrics["best_val_acc"] = metrics["val_acc"][-1]
             metrics["best_val_loss"] = metrics["val_loss"][-1]
             metrics["best_epoch"] = epoch
-            tutil.save_model(model, True, args.save_dir)
+            tutil.save_model(model, True, save_dir)
+        if epoch % args.save_every == 0:
+            tutil.save_model(model, False, save_dir, filename=f"{epoch}.pth")
 
-        tutil.save_metrics(metrics, args.save_dir)
+        tutil.save_metrics(metrics, save_dir)

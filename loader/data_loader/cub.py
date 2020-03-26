@@ -452,5 +452,5 @@ class CUBSegmentationPrefetcher:
         return len(self.cub_loader)
 
 
-def to_dataloader(dataset, batch_size=32, shuffle=True):
-    return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, pin_memory=True)
+def to_dataloader(dataset, batch_size=32, shuffle=True, **kwargs):
+    return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, pin_memory=True, **kwargs)

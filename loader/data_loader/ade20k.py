@@ -1,3 +1,14 @@
+"""
+ade20k dataloaders
+"""
+
+import os
+import glob
+from .cub import TransformLoader
+from PIL import Image
+import numpy as np
+
+
 S2I = {
     "airfield": 0,
     "airplane_cabin": 1,
@@ -329,7 +340,7 @@ S2I = {
     "synagogue-outdoor": 327,
     "television_room": 328,
     "television_studio": 329,
-    "temple-asia": 330,
+    "temple-asia": 330,  # FIXME Shouldn't this be temple-east-asia?
     "throne_room": 331,
     "ticket_booth": 332,
     "topiary_garden": 333,
@@ -368,3 +379,86 @@ S2I = {
 S2I = {f"{k}-s": v for k, v in S2I.items()}
 
 I2S = {v: k for k, v in S2I.items()}
+
+
+class ADE20K:
+    def __init__(self, path, split, max_classes=None):
+        assert split in {'training', 'validation'}
+        self.split = split
+        self.path = path
+        self.img_dir = os.path.join(self.path, 'images', self.split)
+        self.max_classes = max_classes
+
+        # Transform
+        self.transform_loader = TransformLoader(224)
+        augment = self.split == 'training'
+        self.transform = self.transform_loader.get_composed_transform(augment, to_pil=False)
+
+        # Load images
+        self.images = []
+        self.classes = []
+
+        self.load_images()
+        self.unique_classes = np.unique(self.classes)
+        self.n_classes = 365
+
+    def load_images(self):
+        n_classes = 0
+        for letterdir in os.listdir(self.img_dir):
+            if len(letterdir) != 1:
+                continue
+            letterdir = os.path.join(self.img_dir, letterdir)
+            for cname in os.listdir(letterdir):
+                cname_dir = os.path.join(letterdir, cname)
+                has_nested_dirs = any(os.path.isdir(os.path.join(cname_dir, i)) for i in os.listdir(cname_dir))
+                subcnames = []
+                if has_nested_dirs:
+                    # Go one deeper
+                    for subcname in os.listdir(cname_dir):
+                        assert os.path.isdir(os.path.join(cname_dir, subcname))
+                        subcnames.append(subcname)
+                else:
+                    subcnames.append('')
+
+                for subcname in subcnames:
+                    if subcname != '':
+                        # Some exceptions (classes that are ignored in places365)
+                        # car_interior-s, orchestra_pit-s, soccer_field-s, temple-asia-s, waterfall-s
+                        # orchestra pit and soccer field I couldn't find
+                        if cname == 'waterfall':
+                            combname = 'waterfall-s'
+                        elif cname == 'car_interior':
+                            combname = 'car_interior-s'
+                        elif cname == 'temple' and subcname == 'east_asia':
+                            combname = 'temple-asia-s'
+                        else:
+                            combname = f"{cname}-{subcname}-s"
+                        subcnamedir = os.path.join(cname_dir, subcname)
+                    else:
+                        combname = f"{cname}-s"
+                        subcnamedir = cname_dir
+                    if combname not in S2I:
+                        continue
+                    for imgf in glob.glob(os.path.join(subcnamedir, '*.jpg')):
+                        self.images.append(imgf)
+                        self.classes.append(S2I[combname])
+                    n_classes += 1
+                    if self.max_classes is not None and n_classes >= self.max_classes:
+                        return
+
+    def __getitem__(self, i):
+        img_path = self.images[i]
+        cl = self.classes[i]
+        img = Image.open(img_path)
+        img = self.transform(img)
+        return img, cl
+
+    def __len__(self):
+        return len(self.images)
+
+
+def load_ade20k(path, max_classes=None, random_state=None):
+    return {
+        'train': ADE20K(path, 'training', max_classes=max_classes),
+        'val': ADE20K(path, 'validation', max_classes=max_classes),
+    }
