@@ -4,7 +4,8 @@ SEED = 42  # Used mainly to seed random images for now.
 INDEX_FILE = "index_ade20k.csv"  # Which index file to use? If _sm, use test mode
 CLEAN = False  # set to "True" if you want to clean the temporary large files after generating result
 MODEL = "resnet18"  # model arch: resnet18, alexnet, resnet50, densenet161
-DATASET = "places365"  # model trained on: places365, imagenet, or cub. If None,use untrained resnet (random baseline)
+DATASET = "ade20k"  # model trained on: places365, imagenet, or cub. If None,use untrained resnet (random baseline)
+MODEL_CHECKPOINT = 0  # used only for ade20k - model training checkpoint
 PROBE_DATASET = "broden"  # which dataset to probe with (broden, cub, or gqa)
 QUANTILE = 0.005  # the threshold used for activation
 SEG_THRESHOLD = 0.04  # the threshold used for visualization
@@ -49,7 +50,7 @@ else:
 
 TEST_MODE = INDEX_FILE == "index_sm.csv"
 
-OUTPUT_FOLDER = f"result/{MODEL}_{DATASET}_{PROBE_DATASET}{INDEX_SUFFIX}_{LEVEL}_{MAX_FORMULA_LENGTH}{'_test' if TEST_MODE else ''}"  # result will be stored in this folder
+OUTPUT_FOLDER = f"result/{MODEL}_{DATASET}_{PROBE_DATASET}{INDEX_SUFFIX}_{LEVEL}_{MAX_FORMULA_LENGTH}{'_test' if TEST_MODE else ''}{f'_checkpoint_{MODEL_CHECKPOINT}' if DATASET == 'ade20k' else ''}"  # result will be stored in this folder
 
 print(OUTPUT_FOLDER)
 
@@ -93,6 +94,8 @@ elif DATASET == "imagenet":
     NUM_CLASSES = 1000
 elif DATASET == "cub":
     NUM_CLASSES = 200
+elif DATASET == "ade20k":
+    NUM_CLASSES = 365
 
 if MODEL not in {"resnet18", "renset101", "conv4"}:
     raise NotImplementedError(f"model = {MODEL}")
@@ -122,6 +125,9 @@ elif DATASET == "imagenet":
     MODEL_PARALLEL = False
 elif DATASET == "cub":
     MODEL_FILE = f"zoo/trained/{MODEL}_cub_finetune/model_best.pth"
+    MODEL_PARALLEL = False
+elif DATASET == "ade20k":
+    MODEL_FILE = f"zoo/trained/{MODEL}_ade20k_finetune/{MODEL_CHECKPOINT}.pth"
     MODEL_PARALLEL = False
 elif DATASET is None:
     MODEL_FILE = "<UNTRAINED>"
