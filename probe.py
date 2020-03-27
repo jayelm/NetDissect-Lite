@@ -231,7 +231,7 @@ for (
         )
 
 # ==== STEP 5: generate last layer ====
-if settings.LEVEL == "neuron":
+if settings.LEVEL == "neuron" and settings.CONTRIBUTIONS:
     final_weight = contrs_spread[-1]["weight"]["weight"]
     final_card_htmls = vfinal.generate_final_layer_summary(
         fo.data,
@@ -247,20 +247,20 @@ if settings.LEVEL == "neuron":
     )
 
 
-# ==== STEP 6: generate index html ====
-# Add final contrs/tallies/layernames/htmls:
-all_card_htmls["final"] = final_card_htmls
-if len(all_card_htmls) <= 1:
-    # Don't overwrite the existing one
-    print("Warning - no card htmls collected")
-else:
-    with open(all_card_htmls_fname, "wb") as f:
-        pickle.dump(all_card_htmls, f)
+    # ==== STEP 6: generate index html ====
+    # Add final contrs/tallies/layernames/htmls:
+    all_card_htmls["final"] = final_card_htmls
+    if len(all_card_htmls) <= 1:
+        # Don't overwrite the existing one
+        print("Warning - no card htmls collected")
+    else:
+        with open(all_card_htmls_fname, "wb") as f:
+            pickle.dump(all_card_htmls, f)
 
-# Add final tallies and layernames (one indexed)
-tallies.append({k: {"label": v} for k, v in ade20k.I2S.items()})
-layernames.append("final")
-vindex.generate_index(layernames, contrs_spread, tallies, all_card_htmls)
+    # Add final tallies and layernames (one indexed)
+    tallies.append({k: {"label": v} for k, v in ade20k.I2S.items()})
+    layernames.append("final")
+    vindex.generate_index(layernames, contrs_spread, tallies, all_card_htmls)
 
 if settings.CLEAN:
     clean()
