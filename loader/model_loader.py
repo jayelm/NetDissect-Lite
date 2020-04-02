@@ -2,6 +2,7 @@ import settings
 import torch
 import torchvision
 import torch.nn as nn
+import functools
 
 
 def noop(*args, **kwargs):
@@ -15,7 +16,7 @@ def Conv4(*args, num_classes=200, **kwargs):
 
 
 class ConvNet(nn.Module):
-    def __init__(self, depth, num_classes, grayscale=False, pretrained=False, **kwargs):
+    def __init__(self, depth, num_classes, num_channels=32, grayscale=False, pretrained=False, **kwargs):
         if pretrained:
             raise NotImplementedError
         super(ConvNet, self).__init__()
@@ -27,24 +28,22 @@ class ConvNet(nn.Module):
                 else:
                     indim = 3
             else:
-                indim = 32
-            outdim = 32
+                indim = num_channels
+            outdim = num_channels
             B = ConvBlock(indim, outdim, pool=(i < 4), **kwargs)
             trunk.append(B)
 
-        trunk.append(nn.Flatten())
+        #  trunk.append(nn.Flatten())
 
         self.num_classes = num_classes
         self.trunk = nn.Sequential(*trunk)
-        if depth == 4:
-            self.output_dim = 6272  # Figure this out manually
-        else:
-            # Not sure
-            raise NotImplementedError
+        self.output_dim = num_channels
         self.fc = nn.Linear(self.output_dim, self.num_classes)
 
     def forward(self, x):
         x_enc = self.trunk(x)
+        # Do average over patches
+        x_enc = x_enc.mean(2).mean(2)
         preds = self.fc(x_enc)
         return preds
 
@@ -86,10 +85,11 @@ def loadmodel(
     feature_names=settings.FEATURE_NAMES,
     hook_modules=None,
     pretrained_override=None,
+    num_channels=32,  # Applicable to conv4 only
 ):
     device = torch.device("cuda" if settings.GPU else "cpu")
     if settings.MODEL == "conv4":
-        model_fn = Conv4
+        model_fn = functools.partial(Conv4, num_channels=num_channels)
     else:
         model_fn = torchvision.models.__dict__[settings.MODEL]
 
