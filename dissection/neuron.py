@@ -457,6 +457,7 @@ class NeuronOperator:
                     "category": best_cat,
                     "label": best_name,
                     "score": best_iou,
+                    "length": len(best_lab),
                     "emb_summary": emb_summary,
                     "emb_summary_sim": emb_summary_sim,
                     "wn_summary": wn_summary,
