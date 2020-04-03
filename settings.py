@@ -30,13 +30,13 @@ EMBEDDING_SUMMARY = (
     True  # Make an embedding-based summary of the formulas during visualization
 )
 WN_SUMMARY = (
-    True  # Make an embedding-based summary of the formulas during visualization
+    False  # Make an embedding-based summary of the formulas during visualization
 )
 SEMANTIC_CONSISTENCY = True  # Evaluate semantic consistency of formulas
-FORMULA_COMPLEXITY_PENALTY = 0.99  # How much to downweight formulas by their length
+FORMULA_COMPLEXITY_PENALTY = 1.00  # How much to downweight formulas by their length
 BEAM_SEARCH_LIMIT = 50  # (artificially) limit beam to this many candidates
 BEAM_SIZE = 5  # Size of the beam when doing formula search
-MAX_FORMULA_LENGTH = 3  # Maximum compositional formula length
+MAX_FORMULA_LENGTH = 10  # Maximum compositional formula length
 TREE_MAXDEPTH = 4  # Index tree depth
 TREE_MAXCHILDREN = 3  # Index tree max children
 TREE_UNITS = range(1, 365, 10)  # How many units to build tree for
@@ -107,8 +107,9 @@ if MODEL == "resnet18":
         #  ['layer3', '0', 'conv1'], ['layer3', '0', 'conv2'],
         #  ['layer3', '1', 'conv1'], ['layer3', '1', 'conv2'],
         #  ['layer4', '0', 'conv1'], ['layer4', '0', 'conv2'],
-        ["layer4", "1", "conv1"],
-        ["layer4", "1", "conv2"],
+        #  ["layer4", "1", "conv1"],
+        #  ["layer4", "1", "conv2"],
+        'layer4'
     ]
     #  FEATURE_NAMES = ['layer4']
 elif MODEL == "resnet101":

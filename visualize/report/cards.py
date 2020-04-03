@@ -153,8 +153,8 @@ def make_card_html(
         + '<span class="iou">IoU %.2f</span>' % float(record["score"])
         + '<span class="consistency">Consistency %.2f</span> '
         % float(record["consistency"])
-        + f'<span class="emb_summary">emb-s {record["emb_summary"]} ({record["emb_summary_sim"]:.2f})</span> '
-        + f'<span class="wn_summary">wn-s {record["wn_summary"]} ({record["wn_summary_sim"]:.2f})</span> '
+        + f'<span class="emb_summary">emb-s {record["emb_summary"]} ({float(record["emb_summary_sim"]):.2f})</span> '
+        + f'<span class="wn_summary">wn-s {record["wn_summary"]} ({float(record["wn_summary_sim"]):.2f})</span> '
         + contr_str
         + "</div>"
     )
