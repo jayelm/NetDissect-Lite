@@ -6,6 +6,7 @@ CLEAN = False  # set to "True" if you want to clean the temporary large files af
 MODEL = "resnet18"  # model arch: resnet18, alexnet, resnet50, densenet161
 DATASET = "ade20k"  # model trained on: places365, imagenet, or cub. If None,use untrained resnet (random baseline)
 MODEL_CHECKPOINT = 0  # used only for ade20k - model training checkpoint
+CONV4_NUM_CHANNELS = 256
 PROBE_DATASET = "broden"  # which dataset to probe with (broden, cub, or gqa)
 QUANTILE = 0.005  # the threshold used for activation
 SEG_THRESHOLD = 0.04  # the threshold used for visualization
@@ -50,7 +51,11 @@ else:
 
 TEST_MODE = INDEX_FILE == "index_sm.csv"
 
-OUTPUT_FOLDER = f"result/{MODEL}_{DATASET}_{PROBE_DATASET}{INDEX_SUFFIX}_{LEVEL}_{MAX_FORMULA_LENGTH}{'_test' if TEST_MODE else ''}{f'_checkpoint_{MODEL_CHECKPOINT}' if DATASET == 'ade20k' else ''}"  # result will be stored in this folder
+if MODEL == 'conv4':
+    mbase = f"{MODEL}_{CONV4_NUM_CHANNELS}"
+else:
+    mbase = MODEL
+OUTPUT_FOLDER = f"result/{mbase}_{DATASET}_{PROBE_DATASET}{INDEX_SUFFIX}_{LEVEL}_{MAX_FORMULA_LENGTH}{'_test' if TEST_MODE else ''}{f'_checkpoint_{MODEL_CHECKPOINT}' if DATASET == 'ade20k' else ''}"  # result will be stored in this folder
 
 print(OUTPUT_FOLDER)
 
@@ -134,7 +139,7 @@ elif DATASET == "cub":
     MODEL_FILE = f"zoo/trained/{MODEL}_cub_finetune/model_best.pth"
     MODEL_PARALLEL = False
 elif DATASET == "ade20k":
-    MODEL_FILE = f"zoo/trained/{MODEL}_ade20k_finetune/{MODEL_CHECKPOINT}.pth"
+    MODEL_FILE = f"zoo/trained/{mbase}_ade20k_finetune/{MODEL_CHECKPOINT}.pth"
     MODEL_PARALLEL = False
 elif DATASET is None:
     MODEL_FILE = "<UNTRAINED>"

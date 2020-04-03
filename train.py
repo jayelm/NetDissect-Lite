@@ -34,7 +34,6 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", default=32, type=int, help="Train batch size")
     parser.add_argument("--workers", default=4, type=int, help="Train batch size")
     parser.add_argument("--pretrained", action='store_true')
-    parser.add_argument("--num_channels", default=128, type=int, help="# channels for conv4 (only applicable to conv4)")
     parser.add_argument("--epochs", default=50, type=int, help="Training epochs")
     parser.add_argument("--save_every", default=1, type=int, help="Save model every n epochs")
     parser.add_argument("--seed", default=42, type=int, help="Default seed")
@@ -50,7 +49,7 @@ if __name__ == "__main__":
         loader = load_ade20k
 
     if settings.MODEL == 'conv4':
-        model_name = f"conv4_{args.num_channels}"
+        model_name = f"conv4_{settings.CONV4_NUM_CHANNELS}"
     else:
         model_name = settings.MODEL
     save_dir = f"./zoo/trained/{model_name}_{args.dataset}_finetune{'_pretrained' if args.pretrained else ''}"
@@ -74,7 +73,7 @@ if __name__ == "__main__":
     # FIXME: Model isn't doing anything!!
 
     # Always load pretrained
-    model = loadmodel(None, pretrained_override=args.pretrained, num_channels=args.num_channels)
+    model = loadmodel(None, pretrained_override=args.pretrained, num_channels=settings.CONV4_NUM_CHANNELS)
     # Replace the last layer
     n_classes = datasets["train"].n_classes
     if settings.MODEL == "resnet18":
@@ -82,7 +81,7 @@ if __name__ == "__main__":
     elif settings.MODEL == "resnet101":
         model.fc = nn.Linear(2048, n_classes)
     elif settings.MODEL == "conv4":
-        model.fc = nn.Linear(args.num_channels, n_classes)
+        model.fc = nn.Linear(settings.CONV4_NUM_CHANNELS, n_classes)
     elif settings.MODEL == "alexnet":
         model.classifier[-1] = nn.Linear(4096, n_classes)
     elif settings.MODEL == "vgg16":
