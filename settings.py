@@ -97,7 +97,7 @@ elif DATASET == "cub":
 elif DATASET == "ade20k":
     NUM_CLASSES = 365
 
-if MODEL not in {"resnet18", "renset101", "conv4"}:
+if MODEL not in {"resnet18", "renset101", "conv4", "alexnet", "vgg16"}:
     raise NotImplementedError(f"model = {MODEL}")
 
 if MODEL == "resnet18":
@@ -116,6 +116,12 @@ elif MODEL == "resnet101":
 elif MODEL == "conv4":
     # Not sure...
     FEATURE_NAMES = [["trunk", "3"]]
+elif MODEL == "alexnet":
+    # Not sure...
+    FEATURE_NAMES = ["layer4"]
+elif MODEL == "vgg16":
+    # Not sure...
+    FEATURE_NAMES = ["layer4"]
 
 if DATASET == "places365":
     MODEL_FILE = f"zoo/{MODEL}_places365.pth.tar"

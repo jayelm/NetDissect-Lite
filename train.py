@@ -33,14 +33,11 @@ if __name__ == "__main__":
     )
     parser.add_argument("--batch_size", default=32, type=int, help="Train batch size")
     parser.add_argument("--workers", default=4, type=int, help="Train batch size")
+    parser.add_argument("--pretrained", action='store_true')
+    parser.add_argument("--num_channels", default=128, type=int, help="# channels for conv4 (only applicable to conv4)")
     parser.add_argument("--epochs", default=50, type=int, help="Training epochs")
     parser.add_argument("--save_every", default=1, type=int, help="Save model every n epochs")
     parser.add_argument("--seed", default=42, type=int, help="Default seed")
-    parser.add_argument(
-        "--save_dir",
-        default=f"./zoo/trained/{settings.MODEL}_cub_finetune",
-        help="Where to save the model",
-    )
     parser.add_argument("--debug", action="store_true")
 
     args = parser.parse_args()
@@ -52,7 +49,12 @@ if __name__ == "__main__":
         data_dir = 'dataset/ADE20K_2016_07_26/'
         loader = load_ade20k
 
-    save_dir = f"./zoo/trained/{settings.MODEL}_{args.dataset}_finetune"
+    if settings.MODEL == 'conv4':
+        model_name = f"conv4_{args.num_channels}"
+    else:
+        model_name = settings.MODEL
+    save_dir = f"./zoo/trained/{model_name}_{args.dataset}_finetune{'_pretrained' if args.pretrained else ''}"
+    print(f"Train save dir: {save_dir}")
 
     torch.manual_seed(args.seed)
     random = np.random.seed(args.seed)
@@ -69,19 +71,25 @@ if __name__ == "__main__":
         s: to_dataloader(d, batch_size=args.batch_size, num_workers=args.workers) for s, d in datasets.items()
     }
 
+    # FIXME: Model isn't doing anything!!
+
     # Always load pretrained
-    model = loadmodel(None, pretrained_override=True)
+    model = loadmodel(None, pretrained_override=args.pretrained, num_channels=args.num_channels)
     # Replace the last layer
+    n_classes = datasets["train"].n_classes
     if settings.MODEL == "resnet18":
-        inf = 512
+        model.fc = nn.Linear(512, n_classes)
     elif settings.MODEL == "resnet101":
-        inf = 2048
+        model.fc = nn.Linear(2048, n_classes)
     elif settings.MODEL == "conv4":
-        inf = 6272
+        model.fc = nn.Linear(args.num_channels, n_classes)
+    elif settings.MODEL == "alexnet":
+        model.classifier[-1] = nn.Linear(4096, n_classes)
+    elif settings.MODEL == "vgg16":
+        model.classifier[-1] = nn.Linear(4096, n_classes)
     else:
         raise NotImplementedError
 
-    model.fc = nn.Linear(in_features=inf, out_features=datasets["train"].n_classes)
 
     # Re-move the model on/off GPU
     if settings.GPU:
