@@ -30,7 +30,8 @@ class ConvNet(nn.Module):
             else:
                 indim = num_channels
             outdim = num_channels
-            B = ConvBlock(indim, outdim, pool=(i < 4), **kwargs)
+            B = ConvBlock(indim, outdim, pool=(i < 4),
+                          relu=(i != depth - 1), **kwargs)
             trunk.append(B)
 
         #  trunk.append(nn.Flatten())
@@ -55,16 +56,20 @@ class ConvNet(nn.Module):
 
 
 class ConvBlock(nn.Module):
-    def __init__(self, indim, outdim, pool=True, pool_size=2, padding=1):
+    def __init__(self, indim, outdim, pool=True, pool_size=2, padding=1, relu=True):
         super(ConvBlock, self).__init__()
         self.indim = indim
         self.outdim = outdim
         self.C = nn.Conv2d(indim, outdim, 3, padding=padding)
         # self.BN = nn.BatchNorm2d(outdim)
-        self.relu = nn.ReLU(inplace=True)
 
         #  self.parametrized_layers = [self.C, self.BN, self.relu]
-        self.parametrized_layers = [self.C, self.relu]
+        self.parametrized_layers = [self.C]
+
+        if relu:
+            self.relu = nn.ReLU(inplace=True)
+            self.parametrized_layers.append(self.relu)
+
         if pool:
             self.pool = nn.MaxPool2d(pool_size)
             self.parametrized_layers.append(self.pool)
